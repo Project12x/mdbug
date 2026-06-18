@@ -35,8 +35,8 @@ if ($DryRun) {
 
 $stdout = [System.IO.Path]::GetTempFileName()
 $stderr = [System.IO.Path]::GetTempFileName()
-$p = Start-Process -FilePath $Gdb -ArgumentList @("-q", "-batch", "-x", $script, $Elf) `
-    -NoNewWindow -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+$argLine = "-q -batch -x `"$script`" `"$Elf`""
+$p = Start-Process -FilePath $Gdb -ArgumentList $argLine -NoNewWindow -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 if (-not $p.WaitForExit(60000)) { Stop-Process -Id $p.Id -Force; throw "gdb sampler timed out" }
 $raw = Get-Content -LiteralPath $stdout -Raw
 Remove-Item -LiteralPath $script -Force -ErrorAction SilentlyContinue

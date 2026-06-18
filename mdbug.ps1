@@ -8,6 +8,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
+$Config = (Resolve-Path -LiteralPath $Config).Path
 $cfg = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
 $cfgDir = Split-Path (Resolve-Path -LiteralPath $Config) -Parent
 if (-not $Backend) { $Backend = $cfg.backends.default }
@@ -33,9 +34,8 @@ if (-not $NoBuild -and $cfg.build.command) {
     if ($DryRun) {
         Write-Output "BUILD: $($cfg.build.command)  (cwd=$buildCwd)"
     } else {
-        Push-Location $buildCwd
-        try { cmd /c $cfg.build.command; if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" } }
-        finally { Pop-Location }
+        $bp = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cfg.build.command -WorkingDirectory $buildCwd -NoNewWindow -Wait -PassThru
+        if ($bp.ExitCode -ne 0) { throw "build failed (exit $($bp.ExitCode))" }
     }
 }
 

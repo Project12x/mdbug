@@ -35,6 +35,20 @@ def test_run_fail_returns_one(tmp_path):
               "--samples-format", "export", "--out", str(out)])
     assert rc == 1
 
+def test_skip_samples_drops_leading_intervals(tmp_path):
+    import json
+    cfg = {
+        "backends": {"default": "blastem", "blastem": {}},
+        "perf": {"symbol": "g", "count": 1, "width": "u16", "skipSamples": 1,
+                 "fields": [{"index": 0, "name": "load", "aggregate": "max", "unit": "%", "gate": True}]},
+        "gate": {"baseline": "b.json", "ceilings": {"load": 180}, "tolerance": {"default": 0}},
+    }
+    cp = tmp_path / "c.json"; cp.write_text(json.dumps(cfg))
+    dump = tmp_path / "d.txt"; dump.write_text("frame=0 217\nframe=16 40\n")  # 217 would fail, but it's skipped
+    rc = run(["--config", str(cp), "--backend", "blastem", "--samples-file", str(dump),
+              "--samples-format", "export", "--out", str(tmp_path / "r.md")])
+    assert rc == 0
+
 def test_update_baseline_writes_file(tmp_path):
     cfg = _cfg(tmp_path)
     dump = tmp_path / "dump.txt"

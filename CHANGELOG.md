@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.1] - 2026-06-18
+
+### Fixed
+- Build step now sets the child working directory explicitly via `Start-Process -WorkingDirectory` so `build.bat` is found regardless of the .NET process CWD.
+- Analyzer `--config` path is resolved to an absolute path early in `mdbug.ps1`, so relative paths passed by the caller work when the analyzer runs from the mdbug directory.
+- GDB sampler quotes space-containing paths in the argument string passed to `Start-Process`, fixing empty output when the ELF or GDB script path contains spaces.
+
+### Added
+- `perf.skipSamples` config option (integer, default 0) to drop leading boot/warm-up intervals before the perf gate runs.
+
 ## [0.1.0] - 2026-06-17
 
 ### Added

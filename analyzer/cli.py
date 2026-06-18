@@ -46,6 +46,9 @@ def run(argv):
         samples = parse_gdb_dump(text, count, cfg["perf"].get("width"))
     else:
         samples = parse_export(text, count)
+    skip = cfg["perf"].get("skipSamples", 0)
+    if skip:
+        samples = samples[skip:]
     if not samples:
         print("mdbug: no samples parsed from %s" % args.samples_file)
         return 1
