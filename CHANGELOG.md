@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.2] - 2026-06-18
+
+### Fixed
+- Orchestrator now normalizes `..` in resolved paths: `Resolve-RepoPath` and `Resolve-BuildPath` wrap `Join-Path` in `[System.IO.Path]::GetFullPath(...)`.
+- Build command invoked as a single cmd arg string (`/c $command`) instead of two args, preventing command parsing failures.
+- Build dir prepended to `$env:PATH` (restored in `finally`) so the build command is found on machines that exclude the current directory from exe search.
+- `--project` arg reported to the analyzer now derives from the build dir leaf rather than the config dir leaf. (All surfaced by the first live consumer run.)
+
 ## [0.1.1] - 2026-06-18
 
 ### Fixed

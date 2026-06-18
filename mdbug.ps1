@@ -17,7 +17,7 @@ $python = "python"
 
 function Resolve-RepoPath([string]$p) {
     if ([System.IO.Path]::IsPathRooted($p)) { return $p }
-    return (Join-Path $cfgDir $p)
+    return [System.IO.Path]::GetFullPath((Join-Path $cfgDir $p))
 }
 
 $widthLetter = switch ($cfg.perf.width) { "u8" { "bu" } "u32" { "wu" } default { "hu" } }
@@ -26,7 +26,7 @@ $widthLetter = switch ($cfg.perf.width) { "u8" { "bu" } "u32" { "wu" } default {
 $buildCwd = if ($cfg.build -and $cfg.build.cwd) { Resolve-RepoPath $cfg.build.cwd } else { $cfgDir }
 function Resolve-BuildPath([string]$p) {
     if ([System.IO.Path]::IsPathRooted($p)) { return $p }
-    return (Join-Path $buildCwd $p)
+    return [System.IO.Path]::GetFullPath((Join-Path $buildCwd $p))
 }
 
 # 1. build
@@ -34,8 +34,14 @@ if (-not $NoBuild -and $cfg.build.command) {
     if ($DryRun) {
         Write-Output "BUILD: $($cfg.build.command)  (cwd=$buildCwd)"
     } else {
-        $bp = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cfg.build.command -WorkingDirectory $buildCwd -NoNewWindow -Wait -PassThru
-        if ($bp.ExitCode -ne 0) { throw "build failed (exit $($bp.ExitCode))" }
+        # Put the build dir on PATH so the build command is found even when the
+        # shell excludes the current directory from executable search.
+        $savedPath = $env:PATH
+        $env:PATH = "$buildCwd;$env:PATH"
+        try {
+            $bp = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $($cfg.build.command)" -WorkingDirectory $buildCwd -NoNewWindow -Wait -PassThru
+            if ($bp.ExitCode -ne 0) { throw "build failed (exit $($bp.ExitCode))" }
+        } finally { $env:PATH = $savedPath }
     }
 }
 
@@ -106,7 +112,7 @@ $sha = (git -C $cfgDir rev-parse --short HEAD 2>$null)
 if (-not $sha) { $sha = "?" }
 $analyzeArgs = @("-m", "analyzer.cli", "--config", $Config, "--backend", $Backend,
     "--samples-file", $dump, "--samples-format", $fmt, "--shots-dir", $shotsDir,
-    "--out", (Join-Path $outDir "report.md"), "--git-sha", $sha, "--project", (Split-Path $cfgDir -Leaf))
+    "--out", (Join-Path $outDir "report.md"), "--git-sha", $sha, "--project", (Split-Path $buildCwd -Leaf))
 if ($UpdateBaseline) { $analyzeArgs += "--update-baseline" }
 if ($DryRun) { Write-Output "ANALYZE: $python $($analyzeArgs -join ' ')"; return }
 
