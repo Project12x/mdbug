@@ -1,0 +1,105 @@
+param(
+    [Parameter(Mandatory=$true)][string]$Config,
+    [string]$Backend,
+    [switch]$NoBuild,
+    [switch]$NoScreenshots,
+    [switch]$UpdateBaseline,
+    [switch]$DryRun
+)
+$ErrorActionPreference = "Stop"
+$here = $PSScriptRoot
+$cfg = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
+$cfgDir = Split-Path (Resolve-Path -LiteralPath $Config) -Parent
+if (-not $Backend) { $Backend = $cfg.backends.default }
+$be = $cfg.backends.$Backend
+$python = "python"
+
+function Resolve-RepoPath([string]$p) {
+    if ([System.IO.Path]::IsPathRooted($p)) { return $p }
+    return (Join-Path $cfgDir $p)
+}
+
+$widthLetter = switch ($cfg.perf.width) { "u8" { "b" } "u32" { "w" } default { "h" } }
+
+# 1. build
+if (-not $NoBuild -and $cfg.build.command) {
+    $buildCwd = Resolve-RepoPath $cfg.build.cwd
+    if ($DryRun) {
+        Write-Output "BUILD: $($cfg.build.command)  (cwd=$buildCwd)"
+    } else {
+        Push-Location $buildCwd
+        try { cmd /c $cfg.build.command; if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" } }
+        finally { Pop-Location }
+    }
+}
+
+$rom = Resolve-RepoPath $cfg.build.rom
+$elf = Resolve-RepoPath $cfg.build.elf
+
+# 2. resolve perf block address from the ELF symbol table (export mode)
+$address = 0
+$symFile = Resolve-RepoPath "out/symbol.txt"
+if (Test-Path -LiteralPath $symFile) {
+    $address = & $python -c "import sys; sys.path.insert(0, sys.argv[3]); from analyzer.config import resolve_symbol_address as r; print(r(open(sys.argv[1]).read(), sys.argv[2]))" $symFile $cfg.perf.symbol $here
+}
+
+$outDir = Resolve-RepoPath $cfg.report.outDir
+$dump = Join-Path $outDir "samples.txt"
+$shotsDir = Join-Path $outDir "shots"
+
+# 3. checkpoints
+$checkpoints = @()
+if ($cfg.screenshots -and $cfg.screenshots.enabled) {
+    foreach ($c in $cfg.screenshots.checkpoints) {
+        $checkpoints += @{ name = $c.name; atSeconds = $c.atSeconds; atFrame = $c.atFrame }
+    }
+}
+
+# 4. resolve gdb (for GDB-sampling backends)
+$gdb = $be.gdb
+if (-not $gdb) {
+    if ($env:GDK -and (Test-Path (Join-Path $env:GDK "bin\gdb.exe"))) { $gdb = Join-Path $env:GDK "bin\gdb.exe" }
+    elseif (Test-Path "C:\SDKs\SGDK\bin\gdb.exe") { $gdb = "C:\SDKs\SGDK\bin\gdb.exe" }
+}
+
+$preroll = [string[]]@()
+if ($cfg.perf.preroll) { $preroll = [string[]]@($cfg.perf.preroll) }
+
+if (-not $DryRun) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+
+# 5. sample pass
+$adapter = Join-Path $here "backends\$Backend.ps1"
+$sampleArgs = @{
+    Action = "sample"; Rom = $rom; Elf = $elf; EmuPath = $be.path
+    Symbol = $cfg.perf.symbol; Count = $cfg.perf.count; WidthLetter = $widthLetter
+    TriggerSymbol = $cfg.perf.trigger.symbol; Preroll = $preroll; Samples = $cfg.perf.samples
+    DoneSymbol = $cfg.perf.doneFlag.symbol; OutFile = $dump; Gdb = $gdb; Port = $be.gdbPort
+}
+if ($Backend -eq "emusplatter") {
+    $sampleArgs.SampleMode = $be.sampleMode
+    $sampleArgs.Frames = $be.frames
+    $sampleArgs.Address = $address
+}
+if ($DryRun) { $sampleArgs.DryRun = $true }
+& $adapter @sampleArgs
+
+# 6. screenshot pass
+if (-not $NoScreenshots -and $checkpoints.Count -gt 0) {
+    $shotArgs = @{ Action = "screenshot"; Rom = $rom; EmuPath = $be.path; OutFile = $shotsDir; Checkpoints = $checkpoints }
+    if ($DryRun) { $shotArgs.DryRun = $true }
+    & $adapter @shotArgs
+}
+
+# 7. analyze + gate
+$fmt = if ($Backend -eq "emusplatter" -and $be.sampleMode -eq "export") { "export" } else { "gdb" }
+$sha = (git -C $cfgDir rev-parse --short HEAD 2>$null)
+if (-not $sha) { $sha = "?" }
+$analyzeArgs = @("-m", "analyzer.cli", "--config", $Config, "--backend", $Backend,
+    "--samples-file", $dump, "--samples-format", $fmt, "--shots-dir", $shotsDir,
+    "--out", (Join-Path $outDir "report.md"), "--git-sha", $sha, "--project", (Split-Path $cfgDir -Leaf))
+if ($UpdateBaseline) { $analyzeArgs += "--update-baseline" }
+if ($DryRun) { Write-Output "ANALYZE: $python $($analyzeArgs -join ' ')"; return }
+
+Push-Location $here
+try { & $python @analyzeArgs; $rc = $LASTEXITCODE } finally { Pop-Location }
+exit $rc

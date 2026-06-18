@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 
-if (-not $EmuPath) {
+if (-not $EmuPath -and -not $DryRun) {
     & (Join-Path $root "install_blastem.ps1")
     $EmuPath = (Get-Content -LiteralPath (Join-Path $root "blastem\path.txt") -Raw).Trim()
 }
