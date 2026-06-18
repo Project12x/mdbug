@@ -25,6 +25,13 @@ if ($Action -eq "sample") {
     if ($DryRun) { Write-Output "$EmuPath $emuArgs"; return }
     $emu = Start-Process -FilePath $EmuPath -ArgumentList $emuArgs -PassThru
     try {
+        # Give the emulator higher priority to reduce (but not eliminate) interference
+        # from other host processes during perf sampling. Host noise still affects
+        # wall-time aspects and GDB sampling jitter; use emusplatter backend for
+        # the most deterministic results.
+        if ($emu -and -not $emu.HasExited) {
+            $emu.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
+        }
         for ($i = 0; $i -lt 100 -and -not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }
         & (Join-Path $root "lib\gdb_sample.ps1") -Elf $Elf -Gdb $Gdb -Port $Port -Symbol $Symbol `
             -Count $Count -WidthLetter $WidthLetter -TriggerSymbol $TriggerSymbol -Preroll $Preroll `

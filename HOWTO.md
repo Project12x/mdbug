@@ -97,6 +97,23 @@ jsonschema.validate(cfg, schema)
 
 Or use any JSON Schema v7 validator pointed at `config.schema.json`.
 
+## Getting stable / low-noise benchmark numbers
+
+The gate metrics (especially `cpu_load_max` from SGDK `SYS_getCPULoad()`) are sensitive to host machine load. Other programs, browsers, antivirus, indexers, or background builds steal CPU from BlastEm, causing higher peaks and more "overrun" detections even when the emulated 68k work is unchanged.
+
+What the harness does:
+- For the `blastem` backend it now sets the emulator process to `High` priority immediately after launch (in `backends/blastem.ps1`).
+- `emusplatter` (when configured) is fully headless and uses direct work-RAM dumps per emulated frame — this is the most deterministic/reproducible path.
+
+Recommended procedure for a trustworthy gate run:
+1. Close or pause everything heavy (Chrome with many tabs, VSCode watchers, OneDrive sync, Discord, etc.).
+2. Optionally set the PowerShell or cmd window to high priority too.
+3. Prefer `-Backend emusplatter` if you have a working build of the fork.
+4. Run the gate.
+5. If variance is still high, run 2-3 times and look at the best (or median) before deciding to rebaseline.
+
+The vcounter-derived numbers (`overrun`, `scroll_max`, `phys_max`, `sprite_max`) are generally more trustworthy than `cpu_load_max` because they are measured inside emulated time.
+
 ## Install BlastEm (blastem backend)
 
 ```powershell
