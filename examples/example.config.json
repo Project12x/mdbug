@@ -1,0 +1,41 @@
+{
+  "backends": {
+    "default": "emusplatter",
+    "blastem": { "path": null, "gdbPort": 1234, "gdb": null, "screenshot": "postmessage" },
+    "emusplatter": { "path": "D:/code/emusplatter/build/RelWithDebInfo/emusplatter.exe", "sampleMode": "export", "gdbPort": 9001, "frames": 700, "screenshot": "native" }
+  },
+  "build": { "command": "build.bat autoplay", "cwd": "..", "rom": "out/rom.bin", "elf": "out/rom.out" },
+  "perf": {
+    "symbol": "g_perf",
+    "count": 21,
+    "width": "u16",
+    "trigger": { "type": "breakpoint", "symbol": "dbg_perf_tick" },
+    "samples": 40,
+    "preroll": [],
+    "doneFlag": { "symbol": "g_autoplay_done", "value": 1 },
+    "fields": [
+      { "index": 2,  "name": "cpu_load_max", "aggregate": "max",  "unit": "%",         "gate": true  },
+      { "index": 3,  "name": "overrun",      "aggregate": "max",  "unit": "frames",    "gate": true  },
+      { "index": 13, "name": "dma_max",      "aggregate": "max",  "unit": "bytes",     "gate": true  },
+      { "index": 17, "name": "scroll_max",   "aggregate": "max",  "unit": "scanlines", "gate": true  },
+      { "index": 16, "name": "phys_max",     "aggregate": "max",  "unit": "scanlines", "gate": true  },
+      { "index": 18, "name": "sprite_max",   "aggregate": "max",  "unit": "scanlines", "gate": true  },
+      { "index": 0,  "name": "frame_count",  "aggregate": "last", "unit": "frames",    "gate": false }
+    ]
+  },
+  "screenshots": {
+    "enabled": true,
+    "checkpoints": [
+      { "name": "boot",    "atSeconds": 1.0, "atFrame": 60  },
+      { "name": "mid-run", "atSeconds": 4.0, "atFrame": 240 },
+      { "name": "jump",    "atSeconds": 6.5, "atFrame": 390 },
+      { "name": "end",     "atSeconds": 9.5, "atFrame": 570 }
+    ]
+  },
+  "gate": {
+    "baseline": "tools/perf/baseline.{backend}.json",
+    "tolerance": { "default": 0, "cpu_load_max": 2 },
+    "ceilings":  { "cpu_load_max": 180, "dma_max": 7600 }
+  },
+  "report": { "outDir": "out/mdbug" }
+}

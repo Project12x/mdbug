@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdbug/config.schema.json",
+  "title": "mdbug project config",
+  "type": "object",
+  "required": ["backends", "perf", "gate"],
+  "additionalProperties": false,
+  "properties": {
+    "backends": {
+      "type": "object",
+      "required": ["default"],
+      "properties": {
+        "default": { "type": "string" },
+        "blastem": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "path":       { "type": ["string", "null"] },
+            "gdbPort":    { "type": "integer" },
+            "gdb":        { "type": ["string", "null"] },
+            "sampleMode": { "type": "string" },
+            "frames":     { "type": "integer" },
+            "screenshot": { "type": "string" }
+          }
+        },
+        "emusplatter": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "path":       { "type": ["string", "null"] },
+            "gdbPort":    { "type": "integer" },
+            "gdb":        { "type": ["string", "null"] },
+            "sampleMode": { "type": "string" },
+            "frames":     { "type": "integer" },
+            "screenshot": { "type": "string" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "command": { "type": "string" },
+        "cwd":     { "type": "string" },
+        "rom":     { "type": "string" },
+        "elf":     { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "perf": {
+      "type": "object",
+      "required": ["symbol", "count", "width", "fields"],
+      "properties": {
+        "symbol": { "type": "string" },
+        "count":  { "type": "integer" },
+        "width":  { "type": "string" },
+        "trigger": {
+          "type": "object",
+          "properties": {
+            "type":   { "type": "string" },
+            "symbol": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "samples": { "type": "integer" },
+        "preroll": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "doneFlag": {
+          "type": "object",
+          "properties": {
+            "symbol": { "type": "string" },
+            "value":  {}
+          },
+          "additionalProperties": false
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "name", "aggregate", "unit", "gate"],
+            "properties": {
+              "index":     { "type": "integer" },
+              "name":      { "type": "string" },
+              "aggregate": { "type": "string", "enum": ["max", "last", "sum"] },
+              "unit":      { "type": "string" },
+              "gate":      { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "screenshots": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "checkpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name":      { "type": "string" },
+              "atSeconds": { "type": "number" },
+              "atFrame":   { "type": "integer" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "gate": {
+      "type": "object",
+      "required": ["baseline", "tolerance", "ceilings"],
+      "properties": {
+        "baseline":  { "type": "string" },
+        "tolerance": { "type": "object" },
+        "ceilings":  { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "properties": {
+        "outDir": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

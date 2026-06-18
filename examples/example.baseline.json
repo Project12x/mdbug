@@ -1,0 +1,2 @@
+{ "capturedAt": "2026-06-17T00:00:00Z", "gitSha": "0000000", "backend": "blastem",
+  "fields": { "cpu_load_max": 135, "overrun": 3, "dma_max": 6000, "scroll_max": 41, "phys_max": 8, "sprite_max": 12 } }
