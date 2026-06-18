@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory=$true)][int]$Port,
     [Parameter(Mandatory=$true)][string]$Symbol,
     [Parameter(Mandatory=$true)][int]$Count,
-    [string]$WidthLetter = "h",      # GDB x/ unit: h=halfword (u16)
+    [string]$WidthLetter = "hu",     # GDB x/ unit: hu=halfword unsigned (u16)
     [string]$TriggerSymbol,          # break here each interval
     [string[]]$Preroll = @(),        # GDB cmds after connect (e.g. set var)
     [int]$Samples = 40,

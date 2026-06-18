@@ -17,7 +17,7 @@ The analyzer is a pure Python package with no runtime dependencies beyond the st
 
 **`analyzer/parse.py`**
 - `parse_gdb_dump(text, count, width)` — parses verbatim GDB batch stdout (lines of the form `0xADDR:\t0xV 0xV 0xV…`) into a list of int rows, where each row is exactly `count` elements. Incomplete trailing chunks are dropped.
-- `parse_export(text, count)` — parses the emusplatter batch export format (one line of space-separated hex values per frame) into the same list-of-rows shape.
+- `parse_export(text, count)` — parses the emusplatter batch export format (one line of space-separated decimal values per frame) into the same list-of-rows shape.
 
 Both parsers produce the same normalized shape so downstream code is format-agnostic.
 

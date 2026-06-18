@@ -11,7 +11,12 @@ def aggregate(samples, fields):
     """Reduce samples to {field_name: value} using each field's aggregate mode."""
     out = {}
     for f in fields:
-        vals = [s[f["index"]] for s in samples]
+        idx = f["index"]
+        for s in samples:
+            if idx >= len(s):
+                raise ValueError("field '%s' index %d out of range for sample width %d"
+                                 % (f["name"], idx, len(s)))
+        vals = [s[idx] for s in samples]
         agg = _AGG.get(f["aggregate"])
         if agg is None:
             raise ValueError("unknown aggregate: %s" % f["aggregate"])

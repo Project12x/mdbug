@@ -19,11 +19,17 @@ function Resolve-RepoPath([string]$p) {
     return (Join-Path $cfgDir $p)
 }
 
-$widthLetter = switch ($cfg.perf.width) { "u8" { "b" } "u32" { "w" } default { "h" } }
+$widthLetter = switch ($cfg.perf.width) { "u8" { "bu" } "u32" { "wu" } default { "hu" } }
+
+# build root: where the build runs and emits rom/elf/symbol
+$buildCwd = if ($cfg.build -and $cfg.build.cwd) { Resolve-RepoPath $cfg.build.cwd } else { $cfgDir }
+function Resolve-BuildPath([string]$p) {
+    if ([System.IO.Path]::IsPathRooted($p)) { return $p }
+    return (Join-Path $buildCwd $p)
+}
 
 # 1. build
 if (-not $NoBuild -and $cfg.build.command) {
-    $buildCwd = Resolve-RepoPath $cfg.build.cwd
     if ($DryRun) {
         Write-Output "BUILD: $($cfg.build.command)  (cwd=$buildCwd)"
     } else {
@@ -33,14 +39,18 @@ if (-not $NoBuild -and $cfg.build.command) {
     }
 }
 
-$rom = Resolve-RepoPath $cfg.build.rom
-$elf = Resolve-RepoPath $cfg.build.elf
+$rom = Resolve-BuildPath $cfg.build.rom
+$elf = Resolve-BuildPath $cfg.build.elf
 
 # 2. resolve perf block address from the ELF symbol table (export mode)
 $address = 0
-$symFile = Resolve-RepoPath "out/symbol.txt"
+$symFile = Join-Path (Split-Path -Parent $elf) "symbol.txt"
 if (Test-Path -LiteralPath $symFile) {
-    $address = & $python -c "import sys; sys.path.insert(0, sys.argv[3]); from analyzer.config import resolve_symbol_address as r; print(r(open(sys.argv[1]).read(), sys.argv[2]))" $symFile $cfg.perf.symbol $here
+    $address = [int64](& $python -c "import sys; sys.path.insert(0, sys.argv[3]); from analyzer.config import resolve_symbol_address as r; print(r(open(sys.argv[1]).read(), sys.argv[2]))" $symFile $cfg.perf.symbol $here)
+}
+# export mode dumps from a raw address; refuse to silently dump from 0x000000
+if (-not $DryRun -and $Backend -eq "emusplatter" -and $be.sampleMode -eq "export" -and $address -eq 0) {
+    throw "mdbug: could not resolve perf symbol '$($cfg.perf.symbol)' address from $symFile (export mode requires the symbol table). Build the ROM first or check build.elf."
 }
 
 $outDir = Resolve-RepoPath $cfg.report.outDir

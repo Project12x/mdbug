@@ -48,3 +48,9 @@ def test_gate_passes_at_exact_ceiling():
     # baseline above observed so the regression check passes; observed == ceiling isolates the ceiling boundary
     v = gate(obs, {"load": 190, "ovr": 0}, {"load": 180}, {"default": 0}, FIELDS, done_ok=True)
     assert v["passed"] is True   # at-ceiling is not over-ceiling
+
+def test_aggregate_index_out_of_range_raises():
+    import pytest
+    fields = [{"index": 5, "name": "x", "aggregate": "max", "unit": "", "gate": True}]
+    with pytest.raises(ValueError):
+        aggregate([[1, 2]], fields)
