@@ -40,7 +40,8 @@ def run(argv):
     fields = cfg["perf"]["fields"]
     count = cfg["perf"]["count"]
 
-    text = open(args.samples_file, "r", encoding="utf-8").read()
+    with open(args.samples_file, "r", encoding="utf-8") as f:
+        text = f.read()
     if args.samples_format == "gdb":
         samples = parse_gdb_dump(text, count, cfg["perf"].get("width"))
     else:
@@ -61,7 +62,8 @@ def run(argv):
 
     baseline_fields = {}
     if os.path.exists(baseline_path):
-        baseline_fields = json.load(open(baseline_path, "r", encoding="utf-8")).get("fields", {})
+        with open(baseline_path, "r", encoding="utf-8") as f:
+            baseline_fields = json.load(f).get("fields", {})
 
     verdict = gate(observed, baseline_fields, cfg["gate"].get("ceilings", {}),
                    cfg["gate"].get("tolerance", {}), fields, done_ok=(args.done_ok == "1"))

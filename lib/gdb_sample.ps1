@@ -24,11 +24,12 @@ for ($i = 0; $i -lt $Samples; $i++) {
 if ($DoneSymbol) { $cmds += "x/1$WidthLetter &$DoneSymbol" }
 $cmds += @("disconnect", "quit")
 
-$script = [System.IO.Path]::GetTempFileName() + ".gdb"
+$script = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString() + ".gdb")
 Set-Content -LiteralPath $script -Value $cmds -Encoding ASCII
 
 if ($DryRun) {
     Get-Content -LiteralPath $script
+    Remove-Item -LiteralPath $script -Force -ErrorAction SilentlyContinue
     return
 }
 
@@ -38,5 +39,8 @@ $p = Start-Process -FilePath $Gdb -ArgumentList @("-q", "-batch", "-x", $script,
     -NoNewWindow -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 if (-not $p.WaitForExit(60000)) { Stop-Process -Id $p.Id -Force; throw "gdb sampler timed out" }
 $raw = Get-Content -LiteralPath $stdout -Raw
+Remove-Item -LiteralPath $script -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $stdout -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $stderr -Force -ErrorAction SilentlyContinue
 if ($OutFile) { Set-Content -LiteralPath $OutFile -Value $raw -Encoding ASCII }
 return $raw
