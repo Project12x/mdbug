@@ -42,3 +42,9 @@ def test_gate_fails_when_scenario_incomplete():
     v = gate(obs, {"load": 135, "ovr": 0}, {}, {"default": 0}, FIELDS, done_ok=False)
     assert v["passed"] is False
     assert any("did not complete" in r for r in v["reasons"])
+
+def test_gate_passes_at_exact_ceiling():
+    obs = {"load": 180, "ovr": 0, "fc": 48}
+    # baseline above observed so the regression check passes; observed == ceiling isolates the ceiling boundary
+    v = gate(obs, {"load": 190, "ovr": 0}, {"load": 180}, {"default": 0}, FIELDS, done_ok=True)
+    assert v["passed"] is True   # at-ceiling is not over-ceiling
