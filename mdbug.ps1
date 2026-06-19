@@ -13,7 +13,7 @@ $cfg = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
 $cfgDir = Split-Path (Resolve-Path -LiteralPath $Config) -Parent
 if (-not $Backend) { $Backend = $cfg.backends.default }
 $be = $cfg.backends.$Backend
-$python = "python"
+$python = if ($env:PYTHON) { $env:PYTHON } else { "python" }
 
 function Resolve-RepoPath([string]$p) {
     if ([System.IO.Path]::IsPathRooted($p)) { return $p }
