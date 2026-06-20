@@ -85,7 +85,7 @@
             "properties": {
               "index":     { "type": "integer" },
               "name":      { "type": "string" },
-              "aggregate": { "type": "string", "enum": ["max", "last", "sum"] },
+              "aggregate": { "type": "string", "enum": ["max", "last", "sum", "median", "p90"] },
               "unit":      { "type": "string" },
               "gate":      { "type": "boolean" }
             },

@@ -1,9 +1,28 @@
 """Aggregate samples by field, then gate against ceilings + baseline."""
+import math
+
+
+def _percentile(vals, pct):
+    """Nearest-rank percentile (returns an actual observed value, integer-clean).
+
+    Robust to the handful of low load/idle windows, so median/p90 track the
+    typical and near-worst frame where a mean would be skewed. Both builds share
+    the same route, so the median/p90 *delta* between them is apples-to-apples --
+    the basis for judging a change by more than its single worst frame.
+    """
+    if not vals:
+        return 0
+    xs = sorted(vals)
+    k = max(1, math.ceil(pct / 100.0 * len(xs))) - 1
+    return xs[min(k, len(xs) - 1)]
+
 
 _AGG = {
     "max": lambda vals: max(vals) if vals else 0,
     "last": lambda vals: vals[-1] if vals else 0,
     "sum": lambda vals: sum(vals),
+    "median": lambda vals: _percentile(vals, 50),
+    "p90": lambda vals: _percentile(vals, 90),
 }
 
 

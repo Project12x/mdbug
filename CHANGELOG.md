@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- `median` and `p90` aggregate modes for perf fields (`analyzer/gate.py`):
+  nearest-rank, integer-clean, robust to the few idle/load windows. Lets a
+  project report and judge the typical and near-worst frame, not just the max.
+  Schema `aggregate` enum and `tests/test_gate.py` updated. First consumer:
+  jazzmd `scroll_median` / `scroll_p90`.
+
 ## [0.1.2] - 2026-06-18
 
 ### Fixed
