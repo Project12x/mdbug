@@ -74,3 +74,39 @@ def test_aggregate_index_out_of_range_raises():
     fields = [{"index": 5, "name": "x", "aggregate": "max", "unit": "", "gate": True}]
     with pytest.raises(ValueError):
         aggregate([[1, 2]], fields)
+
+def test_gate_invalid_when_required_field_is_zero():
+    # scroll_max == 0 means the camera never moved -> no usable activity.
+    fields = [{"index": 0, "name": "scroll_max", "aggregate": "max", "unit": "", "gate": True}]
+    v = gate({"scroll_max": 0}, {}, {}, {"default": 0}, fields, done_ok=True,
+             validity={"requireNonzero": ["scroll_max"]})
+    assert v["invalid"] is True
+    assert v["passed"] is False
+    assert v["reasons"][0] == "scroll_max == 0 (no activity) -- gate INVALID"
+
+def test_gate_invalid_when_required_field_missing():
+    fields = [{"index": 0, "name": "load", "aggregate": "max", "unit": "", "gate": True}]
+    v = gate({"load": 100}, {}, {}, {"default": 0}, fields, done_ok=True,
+             validity={"requireNonzero": ["scroll_max"]})
+    assert v["invalid"] is True
+    assert v["passed"] is False
+
+def test_gate_valid_when_required_field_nonzero():
+    fields = [{"index": 0, "name": "scroll_max", "aggregate": "max", "unit": "", "gate": True}]
+    v = gate({"scroll_max": 119}, {}, {}, {"default": 0}, fields, done_ok=True,
+             validity={"requireNonzero": ["scroll_max"]})
+    assert v["invalid"] is False
+    assert v["passed"] is True
+
+def test_gate_invalid_reasons_prepended_before_other_reasons():
+    fields = [{"index": 0, "name": "scroll_max", "aggregate": "max", "unit": "", "gate": True}]
+    # also incomplete -> the INVALID reason must come first
+    v = gate({"scroll_max": 0}, {}, {}, {"default": 0}, fields, done_ok=False,
+             validity={"requireNonzero": ["scroll_max"]})
+    assert v["invalid"] is True
+    assert v["reasons"][0].endswith("gate INVALID")
+    assert any("did not complete" in r for r in v["reasons"])
+
+def test_gate_invalid_key_defaults_false_without_validity():
+    v = gate({"load": 135, "ovr": 1, "fc": 48}, {}, {}, {"default": 0}, FIELDS, done_ok=True)
+    assert v["invalid"] is False

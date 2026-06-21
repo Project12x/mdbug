@@ -38,9 +38,17 @@ pwsh -File mdbug.ps1 -Config <your.config.json> -DryRun
 
 See `examples/example.config.json` for an annotated full config. The JSON schema is in `config.schema.json`.
 
+## Optional features
+
+- **Validity guard** — `gate.validity.requireNonzero: [<field>, ...]` marks a run **INVALID** (a third verdict beside PASS/FAIL, with a nonzero exit) when a listed field is zero/missing, catching no-activity runs (e.g. the camera never moved).
+- **A/B compare** — `python -m analyzer.cli --config <c> --samples-file <s> --samples-format <f> --save-snapshot NAME` writes `perf/snap.NAME.json`; `python -m analyzer.cli --config <c> --compare A B --out compare.md` renders a `| Metric | A | B | Delta |` table (no live samples needed).
+- **Watch trace** — top-level `watch: [{ name, symbol, format? }]` traces globals across intervals; the report gains a **Trajectory** table (GDB-mode backends only).
+
+See `HOWTO.md` for full details on each.
+
 ## Backends
 
-**`blastem`** (portable default) — launches BlastEm with `-D` to expose a GDB stub, then uses the shared `lib/gdb_sample.ps1` to sample via GDB remote. Screenshots use BlastEm's screenshot-key capture at wall-clock checkpoints. BlastEm is auto-installed via `install_blastem.ps1` when `backends.blastem.path` is null; GDB resolves from `$env:GDK\bin\gdb.exe` or `C:\SDKs\SGDK\bin\gdb.exe` when `backends.blastem.gdb` is null.
+**`blastem`** (portable default) — launches BlastEm with `-D` to expose a GDB stub, then uses the shared `lib/gdb_sample.ps1` to sample via GDB remote. Screenshots use BlastEm's screenshot-key capture at wall-clock checkpoints (a headless run with no window handle warns and skips screenshots instead of failing). BlastEm is auto-installed via `install_blastem.ps1` when `backends.blastem.path` is null; GDB resolves via a fallback chain when `backends.blastem.gdb` is null: `$env:GDK\bin\gdb.exe` → config `build.gdk` → `C:\SDKs\SGDK\bin\gdb.exe` → `C:\SDKS\SGDK\bin\gdb.exe` → PATH (`m68k-elf-gdb`/`gdb`), throwing one clear error if none is found.
 
 **`emusplatter`** — a headless/deterministic Ares fork backend. Set `backends.emusplatter.path` in the config to the built binary. Requires the fork's `--headless`, `--frames`, `--dump-workram`, `--screenshot`, and (for gdb mode) `--gdb-server` flags. The default `sampleMode` is `export` (runs `--dump-workram <addr>,<size>,<file>` once per frame for `backends.emusplatter.frames` frames, then aggregates — fast, fully headless, no GDB required). Set `sampleMode` to `gdb` to use the shared GDB sampler via the fork's `--gdb-server` flag instead.
 

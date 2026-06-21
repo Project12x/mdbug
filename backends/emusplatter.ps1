@@ -7,7 +7,9 @@ param(
     [int]$Frames = 700, [int]$Port = 9001,
     [string]$Symbol, [int]$Count = 21, [string]$WidthLetter = "h",
     [long]$Address, [string]$TriggerSymbol, [string[]]$Preroll = @(), [int]$Samples = 40,
-    [string]$DoneSymbol, [string]$OutFile,
+    [string]$DoneSymbol,
+    [string[]]$WatchName = @(), [string[]]$WatchExpr = @(),
+    [string]$OutFile,
     [hashtable[]]$Checkpoints = @(),
     [switch]$DryRun
 )
@@ -32,7 +34,7 @@ if ($Action -eq "sample" -and $SampleMode -eq "gdb") {
         for ($i = 0; $i -lt 100 -and -not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }
         & (Join-Path $root "lib\gdb_sample.ps1") -Elf $Elf -Gdb $Gdb -Port $Port -Symbol $Symbol `
             -Count $Count -WidthLetter $WidthLetter -TriggerSymbol $TriggerSymbol -Preroll $Preroll `
-            -Samples $Samples -DoneSymbol $DoneSymbol -OutFile $OutFile
+            -Samples $Samples -DoneSymbol $DoneSymbol -WatchName $WatchName -WatchExpr $WatchExpr -OutFile $OutFile
     } finally { if (-not $emu.HasExited) { Stop-Process -Id $emu.Id -Force } }
     return $OutFile
 }

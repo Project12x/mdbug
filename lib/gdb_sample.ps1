@@ -9,10 +9,26 @@ param(
     [string[]]$Preroll = @(),        # GDB cmds after connect (e.g. set var)
     [int]$Samples = 40,
     [string]$DoneSymbol,             # optional completion flag
+    [string[]]$WatchName = @(),      # parallel arrays: per-interval watch trace
+    [string[]]$WatchExpr = @(),      # gdb lvalue (symbol) read for WatchName[j]
+    [string[]]$WatchCast = @(),      # per-watch type (u8/s8/u16/s16/u32/s32/raw)
     [string]$OutFile,                # raw dump destination
     [switch]$DryRun
 )
 $ErrorActionPreference = "Stop"
+
+# Map a watch type to a C cast. Under -O3/-flto the watched globals are minimal
+# symbols (address only, no DWARF type), so `printf "%d", sym` fails with
+# "unknown type". Reading via `*(ctype *)&sym` (address + explicit cast) is
+# type-agnostic and works regardless of debug-info stripping. "raw"/unknown ->
+# no cast (caller supplied a fully-formed expression).
+$WATCH_CTYPE = @{ "u8" = "unsigned char"; "s8" = "char"; "u16" = "unsigned short";
+                  "s16" = "short"; "u32" = "unsigned int"; "s32" = "int" }
+function _watch_arg([string]$expr, [string]$cast) {
+    $ctype = $WATCH_CTYPE[$cast]
+    if ($ctype) { return "*($ctype *)&$expr" }
+    return $expr
+}
 
 $cmds = @("set pagination off", "set confirm off", "target remote :$Port")
 $cmds += $Preroll
@@ -20,6 +36,14 @@ if ($TriggerSymbol) { $cmds += "break $TriggerSymbol" }
 for ($i = 0; $i -lt $Samples; $i++) {
     if ($TriggerSymbol) { $cmds += "continue" }
     $cmds += "x/$Count$WidthLetter &$Symbol"
+    # Watch trace: emit one MDBUG_WATCH line per watch after the perf dump. These
+    # lines are NOT shaped like `0xADDR ... : <ints>`, so parse_gdb_dump ignores
+    # them; parse_watch picks them up (k-th occurrence of a name = interval k).
+    for ($j = 0; $j -lt $WatchName.Count; $j++) {
+        $cast = if ($j -lt $WatchCast.Count) { $WatchCast[$j] } else { "u16" }
+        $arg = _watch_arg $WatchExpr[$j] $cast
+        $cmds += "printf `"MDBUG_WATCH $($WatchName[$j]) %d\n`", $arg"
+    }
 }
 if ($DoneSymbol) { $cmds += "x/1$WidthLetter &$DoneSymbol" }
 $cmds += @("disconnect", "quit")

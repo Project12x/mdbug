@@ -11,6 +11,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   project report and judge the typical and near-worst frame, not just the max.
   Schema `aggregate` enum and `tests/test_gate.py` updated. First consumer:
   jazzmd `scroll_median` / `scroll_p90`.
+- Validity guard (`gate.validity.requireNonzero`): a list of field names that
+  must be nonzero for a run to be valid. A zero/missing required field yields a
+  new INVALID verdict (distinct from FAIL: the run produced no usable activity),
+  reported as `<field> == 0 (no activity) -- gate INVALID` and a nonzero exit.
+  `gate()` gains a `validity` kwarg and returns `invalid` (default False);
+  report/CLI render `INVALID`. Catches "camera never moved" perf runs.
+- A/B snapshot compare. `--save-snapshot NAME` writes the observed fields to
+  `<cfg_dir>/perf/snap.<NAME>.json` during a normal run. `--compare A B` loads
+  two snapshots and renders a side-by-side `| Metric | A | B | Delta |` table
+  (`render_compare`), writes it to `--out`, and exits 0 -- no live samples
+  required in compare mode.
+- Watch trace. Optional top-level `watch: [{ name, symbol, format? }]`. The GDB
+  sampler emits `MDBUG_WATCH <name> <value>` per interval (ignored by perf
+  parsing); `parse_watch` collects per-name series and the report appends a
+  `## Trajectory` table (one row per interval, one column per watch). Lets a run
+  trace globals like `cam_x`/`cam_y` over time alongside the perf gate.
+- Headless robustness. `mdbug.ps1` resolves gdb via a clear fallback chain
+  (`backends.<be>.gdb` -> `$env:GDK` -> `build.gdk` -> `C:\SDKs\SGDK` ->
+  `C:\SDKS\SGDK` -> PATH `m68k-elf-gdb`/`gdb`), throwing one error naming every
+  candidate when none is found instead of silently sampling nothing.
+  `lib/blastem_screenshot.ps1` now warns and returns (instead of throwing) when
+  no window handle is available, so headless runs still produce metrics without
+  needing `-NoScreenshots`. Schema gains `watch` and `gate.validity`.
 
 ## [0.1.2] - 2026-06-18
 

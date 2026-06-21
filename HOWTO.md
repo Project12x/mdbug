@@ -18,8 +18,17 @@ The orchestrator will (unless flags suppress a step):
 
 Useful flags:
 - `-NoBuild` — skip the build step; use the ROM already on disk.
-- `-NoScreenshots` — skip the screenshot pass.
+- `-NoScreenshots` — skip the screenshot pass. Optional headlessly: when no
+  window handle is available the screenshot pass now warns and continues instead
+  of failing the run.
 - `-DryRun` — print all commands without launching any process.
+
+`mdbug.ps1` resolves gdb via a fallback chain so a headless run does not silently
+yield zero samples: `backends.<backend>.gdb` → `$env:GDK\bin\gdb.exe` →
+`build.gdk\bin\gdb.exe` → `C:\SDKs\SGDK\bin\gdb.exe` → `C:\SDKS\SGDK\bin\gdb.exe`
+→ PATH (`m68k-elf-gdb`, then `gdb`). If none is found it throws one error naming
+every candidate it tried. Export-mode backends (emusplatter) need no gdb and skip
+this entirely.
 
 ## Read the report
 
@@ -41,8 +50,79 @@ Useful flags:
   - **Result** — `pass`, `fail`, or `info` (for `gate: false` fields that are recorded but not gated).
 
 - A **Screenshots** section with embedded checkpoint PNGs from `<outDir>/shots/`.
-- A **Failures** section listing each specific failure reason (only present on FAIL).
+- A **Trajectory** section (only when `config.watch` is set) — a table with a
+  `sample` column plus one column per watched global, one row per interval (see
+  "Watch globals over time" below).
+- A **Failures** section listing each specific failure reason (only present on FAIL),
+  titled **Invalid** instead when the verdict is INVALID.
 - A collapsed `<details>` block with the raw GDB or export dump for forensics.
+
+## Verdicts: PASS / FAIL / INVALID
+
+The gate has three verdicts:
+
+- **PASS** — every gated field is within its ceiling and baseline+tolerance, the
+  scenario completed, and (if configured) all validity requirements hold. Exit 0.
+- **FAIL** — a gated field breached its ceiling or regressed past tolerance, or the
+  scenario did not complete. Exit 1.
+- **INVALID** — the run produced no usable activity, so its numbers cannot be
+  trusted (distinct from FAIL). Configure with `gate.validity.requireNonzero`, a
+  list of field names that must be nonzero:
+
+  ```json
+  "gate": { "validity": { "requireNonzero": ["scroll_max"] } }
+  ```
+
+  If any listed field is zero or missing, the verdict is INVALID, the report shows
+  **Result: INVALID** with an `<field> == 0 (no activity) -- gate INVALID` reason,
+  and the exit code is nonzero. This catches runs where the camera never moved or
+  the workload never started — numbers that would otherwise spuriously "pass".
+
+## A/B compare two runs
+
+Capture a snapshot during any normal run with `--save-snapshot NAME` (passed
+through the analyzer; not yet a `mdbug.ps1` flag — call the analyzer directly or
+add it to your wrapper):
+
+```powershell
+python -m analyzer.cli --config your.config.json --samples-file out/samples.txt --samples-format gdb --save-snapshot before
+# ...make a change, rebuild, sample again...
+python -m analyzer.cli --config your.config.json --samples-file out/samples.txt --samples-format gdb --save-snapshot after
+```
+
+Each snapshot is written to `<cfg_dir>/perf/snap.<NAME>.json`. Then render a
+side-by-side delta table (compare mode needs no live samples):
+
+```powershell
+python -m analyzer.cli --config your.config.json --compare before after --out out/compare.md
+```
+
+This produces `| Metric | before | after | Delta |` rows for every configured
+field and exits 0.
+
+## Watch globals over time
+
+Add an optional top-level `watch` array to trace globals across intervals:
+
+```json
+"watch": [
+  { "name": "cam_x", "symbol": "g_dbg_cam_x" },
+  { "name": "cam_y", "symbol": "g_dbg_cam_y", "type": "s16" }
+]
+```
+
+Each entry maps a column name to a global **lvalue** `symbol`. The sampler reads
+it as `*(ctype*)&symbol`, where `ctype` comes from the optional `"type"`
+(`u8/s8/u16/s16/u32/s32`, default `u16`) — the cast is REQUIRED because under
+`-O3/-flto` the watched globals are minimal symbols with no DWARF type, so a bare
+`printf "%d", symbol` fails with "unknown type". Use `"type": "raw"` to skip the
+cast and provide a fully-formed gdb expression in `symbol` instead. The GDB
+sampler emits one `MDBUG_WATCH <name> <value>` line per interval after the perf
+dump; these lines are ignored by perf parsing and collected by `parse_watch`
+into per-name series.
+The report appends a **Trajectory** table — one row per interval, one column per
+watch (short series are padded with `-`). Watch is GDB-mode only; export-mode
+backends do not emit watch lines.
 
 ## Re-baseline
 
@@ -76,7 +156,7 @@ cd C:\path\to\mdbug
 python -m pytest -v
 ```
 
-Expected: 22 passed. The suite covers `parse_gdb_dump`, `parse_export`, `aggregate`, `gate`, `render_report`, `load_config`, and the CLI round-trip.
+Expected: 55 passed. The suite covers `parse_gdb_dump`, `parse_export`, `parse_watch`, `aggregate`, `gate` (incl. validity/INVALID), `render_report` (incl. trajectory), `render_compare`, `load_config`, the PC-sampling symbolizer, and the CLI round-trip (incl. snapshot/compare modes).
 
 `jsonschema` is an optional dev dependency used to validate configs against `config.schema.json`. If not installed, schema validation is skipped. Install with:
 

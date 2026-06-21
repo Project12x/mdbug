@@ -115,13 +115,38 @@
       },
       "additionalProperties": false
     },
+    "watch": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "symbol"],
+        "properties": {
+          "name":   { "type": "string" },
+          "symbol": { "type": "string", "description": "gdb lvalue (global); read as *(ctype*)&symbol" },
+          "type":   { "type": "string", "enum": ["u8", "s8", "u16", "s16", "u32", "s32", "raw"],
+                      "description": "C width for the read cast (default u16). 'raw' = no cast; symbol must be a fully-formed gdb expression. The cast makes the read work for minimal symbols (-O3/-flto) that lack a DWARF type." },
+          "format": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
     "gate": {
       "type": "object",
       "required": ["baseline", "tolerance", "ceilings"],
       "properties": {
         "baseline":  { "type": "string" },
         "tolerance": { "type": "object" },
-        "ceilings":  { "type": "object" }
+        "ceilings":  { "type": "object" },
+        "validity": {
+          "type": "object",
+          "properties": {
+            "requireNonzero": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

@@ -57,14 +57,18 @@ try {
     $process = Start-Process -FilePath $EmuPath -ArgumentList $argLine `
         -WorkingDirectory $blastemDir -PassThru
 
-    # Wait for the window handle to appear (mirrors jazzmd pattern)
+    # Wait for the window handle to appear (mirrors jazzmd pattern).
+    # Headless runs (no desktop session / no visible window) never get a handle;
+    # warn and return gracefully so the perf metrics still come through instead
+    # of failing the whole run. (-NoScreenshots is therefore optional headlessly.)
     $process.Refresh()
     for ($i = 0; $i -lt 30 -and $process.MainWindowHandle -eq 0; $i++) {
         Start-Sleep -Milliseconds 250
         $process.Refresh()
     }
     if ($process.MainWindowHandle -eq 0) {
-        throw "BlastEm window handle was not available."
+        Write-Warning "mdbug: no window handle; skipping screenshots"
+        return
     }
 
     [Win32BlastEmMdbug]::SetForegroundWindow($process.MainWindowHandle) | Out-Null

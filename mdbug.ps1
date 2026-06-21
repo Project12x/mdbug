@@ -71,15 +71,60 @@ if ($cfg.screenshots -and $cfg.screenshots.enabled) {
     }
 }
 
-# 4. resolve gdb (for GDB-sampling backends)
-$gdb = $be.gdb
-if (-not $gdb) {
-    if ($env:GDK -and (Test-Path (Join-Path $env:GDK "bin\gdb.exe"))) { $gdb = Join-Path $env:GDK "bin\gdb.exe" }
-    elseif (Test-Path "C:\SDKs\SGDK\bin\gdb.exe") { $gdb = "C:\SDKs\SGDK\bin\gdb.exe" }
+# 4. resolve gdb (for GDB-sampling backends).
+#    Clear fallback chain so a headless run does not silently yield no samples:
+#    backend.gdb -> $env:GDK -> config build.gdk -> known SDK paths -> PATH search.
+function Resolve-Gdb {
+    $tried = @()
+    if ($be.gdb) { return $be.gdb }   # explicit config wins
+
+    if ($env:GDK) {
+        $g = Join-Path $env:GDK "bin\gdb.exe"
+        $tried += "`$env:GDK ($g)"
+        if (Test-Path -LiteralPath $g) { return $g }
+    } else {
+        $tried += "`$env:GDK (unset)"
+    }
+
+    if ($cfg.build -and $cfg.build.gdk) {
+        $g = Resolve-BuildPath (Join-Path $cfg.build.gdk "bin\gdb.exe")
+        $tried += "config build.gdk ($g)"
+        if (Test-Path -LiteralPath $g) { return $g }
+    }
+
+    foreach ($p in @("C:\SDKs\SGDK\bin\gdb.exe", "C:\SDKS\SGDK\bin\gdb.exe")) {
+        $tried += $p
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
+
+    foreach ($name in @("m68k-elf-gdb", "gdb")) {
+        $tried += "PATH:$name"
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+    }
+
+    throw "mdbug: could not resolve gdb. Tried: $($tried -join '; '). Set backends.$Backend.gdb in the config, set `$env:GDK, or add gdb/m68k-elf-gdb to PATH."
 }
+$gdb = $null
+if ($be.sampleMode -ne "export") { $gdb = Resolve-Gdb }
 
 $preroll = [string[]]@()
 if ($cfg.perf.preroll) { $preroll = [string[]]@($cfg.perf.preroll) }
+
+# watch trace (optional): parallel name/expr/cast arrays for the GDB sampler.
+# cast (from each entry's optional "type", default u16) makes the read
+# type-agnostic via *(ctype*)&sym -- minimal symbols (-O3/-flto) lack a DWARF
+# type, so a bare `printf "%d", sym` would fail with "unknown type".
+$watchName = [string[]]@()
+$watchExpr = [string[]]@()
+$watchCast = [string[]]@()
+if ($cfg.watch) {
+    foreach ($w in $cfg.watch) {
+        $watchName += [string]$w.name
+        $watchExpr += [string]$w.symbol
+        $watchCast += if ($w.type) { [string]$w.type } else { "u16" }
+    }
+}
 
 if (-not $DryRun) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
@@ -90,6 +135,7 @@ $sampleArgs = @{
     Symbol = $cfg.perf.symbol; Count = $cfg.perf.count; WidthLetter = $widthLetter
     TriggerSymbol = $cfg.perf.trigger.symbol; Preroll = $preroll; Samples = $cfg.perf.samples
     DoneSymbol = $cfg.perf.doneFlag.symbol; OutFile = $dump; Gdb = $gdb; Port = $be.gdbPort
+    WatchName = $watchName; WatchExpr = $watchExpr; WatchCast = $watchCast
 }
 if ($Backend -eq "emusplatter") {
     $sampleArgs.SampleMode = $be.sampleMode

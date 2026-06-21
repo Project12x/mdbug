@@ -43,12 +43,20 @@ def aggregate(samples, fields):
     return out
 
 
-def gate(observed, baseline_fields, ceilings, tolerances, fields, done_ok=True):
+def gate(observed, baseline_fields, ceilings, tolerances, fields, done_ok=True,
+         validity=None):
     """Return a verdict dict. FAIL if any gated field breaches its ceiling or
-    regresses past baseline+tolerance, or if the scenario did not complete."""
+    regresses past baseline+tolerance, or if the scenario did not complete.
+
+    `validity` is an optional dict; `validity["requireNonzero"]` lists field
+    names that must have a nonzero observed value for the run to be considered
+    valid. A zero/missing required field marks the verdict INVALID (a separate
+    state from FAIL: the run produced no usable activity, so its numbers cannot
+    be trusted) -- `invalid=True`, `passed=False`, with reasons prepended."""
     rows = []
     reasons = []
     passed = True
+    invalid = False
     default_tol = tolerances.get("default", 0)
     for f in fields:
         name = f["name"]
@@ -76,4 +84,13 @@ def gate(observed, baseline_fields, ceilings, tolerances, fields, done_ok=True):
     if not done_ok:
         passed = False
         reasons.append("scenario did not complete (done-flag not observed)")
-    return {"passed": passed, "rows": rows, "reasons": reasons}
+    if validity:
+        invalid_reasons = []
+        for name in validity.get("requireNonzero", []):
+            if not observed.get(name):  # 0, None, or missing
+                invalid_reasons.append("%s == 0 (no activity) -- gate INVALID" % name)
+        if invalid_reasons:
+            invalid = True
+            passed = False
+            reasons = invalid_reasons + reasons
+    return {"passed": passed, "invalid": invalid, "rows": rows, "reasons": reasons}
