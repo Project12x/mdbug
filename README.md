@@ -1,6 +1,6 @@
 # mdbug — Mega Drive Perf-Gate Harness
 
-`mdbug` is a standalone, config-driven Mega Drive performance-gate and screenshot harness with selectable `blastem` and `emusplatter` backends. It boots a ROM, drives a deterministic in-ROM workload, samples an in-ROM perf block via GDB or a batch work-RAM export, captures screenshots at fixed checkpoints, and emits PASS/FAIL against a committed baseline and hard ceilings — producing a single shareable markdown report. Any Mega Drive project that implements the four-item instrumentation contract below can adopt it without forking.
+`mdbug` is a standalone, config-driven Mega Drive **performance-gate, PC-sampling profiler, and screenshot** harness with selectable `blastem` and `emusplatter` backends. It boots a ROM, drives a deterministic in-ROM workload, samples an in-ROM perf block via GDB or a batch work-RAM export, captures screenshots at fixed checkpoints, and emits PASS/FAIL against a committed baseline and hard ceilings — producing a single shareable markdown report. Any Mega Drive project that implements the four-item instrumentation contract below can adopt it without forking.
 
 ## The instrumentation contract
 
@@ -45,6 +45,16 @@ See `examples/example.config.json` for an annotated full config. The JSON schema
 - **Watch trace** — top-level `watch: [{ name, symbol, format? }]` traces globals across intervals; the report gains a **Trajectory** table (GDB-mode backends only).
 
 See `HOWTO.md` for full details on each.
+
+## PC-sampling profiler
+
+Beyond the gate's lumped perf counters, mdbug includes a **statistical PC-sampling profiler**
+that splits a frame section into a function-level flame table — *where* the emulated 68000
+actually spends time. A drop-in per-scanline HInt (`instrumentation/pc_sample.*`) rings the
+interrupted PC in RAM; gdb dumps it; `analyzer/profile.py` symbolizes it against the ELF. It
+is host-independent and reproducible (same determinism the gate relies on — a slow laptop and
+a fast workstation produce the identical profile). See **`PROFILING.md`** for the end-to-end
+workflow + caveats, and **`instrumentation/README.md`** for the drop-in target code.
 
 ## Backends
 

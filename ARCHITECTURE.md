@@ -35,6 +35,16 @@ Both parsers produce the same normalized shape so downstream code is format-agno
 **`analyzer/cli.py`**
 - Entry point invoked by the orchestrator. Wires `--config`, `--backend`, `--samples-file`, `--samples-format`, `--shots-dir`, `--out`, `--update-baseline`, and metadata flags into the full parse → aggregate → gate → report pipeline. Exits 0 on PASS, 1 on FAIL.
 
+**`analyzer/profile.py`** (PC-sampling profiler — a parallel pipeline, independent of the gate)
+- `parse_pc_samples(text)`, `parse_symbol_table(text)`, `profile_samples(symbol_text, pcs)`,
+  `render_profile_report(...)` — a **clock-agnostic** symbolizer: it maps a flat list of sampled
+  68k program-counter values to their enclosing code symbol (nm-style address ranges from
+  `symbol.txt`) and ranks them into a function-level flame table. It knows nothing about *how*
+  the PCs were sampled, so any clock can feed it. CLI: `python -m analyzer.profile`. The PCs come
+  from the drop-in HInt sampler in `instrumentation/` (see `PROFILING.md` for the end-to-end
+  dump procedure). This shares the gate's host-independence: the emulated sampling is
+  deterministic, so the profile is reproducible regardless of host speed.
+
 The analyzer never interprets what a metric means — it samples named fields from a flat array and gates them against configured ceilings and a committed baseline. Adding a new metric is purely a config change.
 
 ---

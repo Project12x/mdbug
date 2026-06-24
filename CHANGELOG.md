@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **PC-sampling profiler — docs + reusable drop-in instrumentation.** Documented the
+  end-to-end profiler workflow in **`PROFILING.md`**: the per-scanline HInt sampler that reads
+  the *interrupted* 68k PC from the hardware interrupt frame (an asm trampoline; a C interrupt
+  handler can't recover it reliably), the gdb dump of the RAM ring, and `analyzer/profile.py`
+  symbolization — with the determinism (host-independent, laptop-safe) and observer-effect
+  caveats spelled out. Vendored the reusable, project-agnostic drop-in target code under
+  **`instrumentation/`** (`pc_sample.{h,c}` + `pc_sample_hint.s`, flag-gated `DEBUG_PC_SAMPLE`,
+  default OFF) + `instrumentation/README.md`. `README.md` + `ARCHITECTURE.md` now cover
+  `analyzer/profile.py` (it was shipped in a prior commit but undocumented).
 - `median` and `p90` aggregate modes for perf fields (`analyzer/gate.py`):
   nearest-rank, integer-clean, robust to the few idle/load windows. Lets a
   project report and judge the typical and near-worst frame, not just the max.
