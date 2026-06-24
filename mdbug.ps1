@@ -175,7 +175,14 @@ if ($Profile) {
     }
 
     # 1. dump the PC ring (gdb over BlastEm -D), mirroring backends/blastem.ps1's launch.
-    $emu = Start-Process -FilePath $be.path -ArgumentList "`"$pRom`" -D" -PassThru
+    #    Resolve the emulator like the backend adapter does: a null config path means
+    #    "auto-install + read blastem\path.txt".
+    $emuPath = $be.path
+    if (-not $emuPath) {
+        & (Join-Path $here "install_blastem.ps1")
+        $emuPath = (Get-Content -LiteralPath (Join-Path $here "blastem\path.txt") -Raw).Trim()
+    }
+    $emu = Start-Process -FilePath $emuPath -ArgumentList "`"$pRom`" -D" -PassThru
     try {
         if ($emu -and -not $emu.HasExited) { $emu.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High }
         for ($i = 0; $i -lt 100 -and -not (Get-NetTCPConnection -LocalPort $be.gdbPort -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }

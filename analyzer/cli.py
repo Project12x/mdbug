@@ -24,11 +24,22 @@ def _snapshot_path(cfg_dir, name):
 
 
 def _build_path(cfg, cfg_dir, key):
-    """Resolve a ``build.<key>`` path relative to the config dir (or None)."""
-    raw = (cfg.get("build") or {}).get(key)
+    """Resolve ``build.<key>`` relative to ``build.cwd`` (default: the config dir).
+
+    Matches mdbug.ps1's Resolve-BuildPath so the analyzer and the harness agree on
+    where the ROM/ELF live -- a config with ``build.cwd: ".."`` puts out/rom.out at
+    the repo root, not under the config's own directory.
+    """
+    build = cfg.get("build") or {}
+    raw = build.get(key)
     if not raw:
         return None
-    return raw if os.path.isabs(raw) else os.path.join(cfg_dir, raw)
+    if os.path.isabs(raw):
+        return raw
+    raw_cwd = build.get("cwd")
+    base = cfg_dir if not raw_cwd else (raw_cwd if os.path.isabs(raw_cwd)
+                                        else os.path.join(cfg_dir, raw_cwd))
+    return os.path.normpath(os.path.join(base, raw))
 
 
 def _run_profile(args, cfg, cfg_dir):

@@ -150,6 +150,23 @@ def test_run_emits_trajectory_when_watch_configured(tmp_path):
     assert "| 0 | 16 |" in md and "| 1 | 32 |" in md
 
 
+def test_build_path_honors_build_cwd(tmp_path):
+    # build.elf/rom are relative to build.cwd (like mdbug.ps1 Resolve-BuildPath), not
+    # the config dir -- a config with cwd ".." puts out/rom.out at the repo root.
+    import os
+    from analyzer.cli import _build_path
+    cfg_dir = str(tmp_path / "tools")
+    cfg = {"build": {"cwd": "..", "elf": "out/rom.out"}}
+    assert _build_path(cfg, cfg_dir, "elf") == os.path.normpath(
+        os.path.join(str(tmp_path), "out", "rom.out"))
+    # no build.cwd -> relative to the config dir
+    assert _build_path({"build": {"elf": "out/rom.out"}}, cfg_dir, "elf") == \
+        os.path.normpath(os.path.join(cfg_dir, "out", "rom.out"))
+    # absent key / no build block -> None
+    assert _build_path({"build": {}}, cfg_dir, "elf") is None
+    assert _build_path({}, cfg_dir, "rom") is None
+
+
 def test_profile_samples_dispatches_nm_path(tmp_path):
     # --profile-samples runs the profile sub-pass *before* the gate's --samples-file
     # check, on the always-available nm floor (no pyelftools/capstone, no --elf).
