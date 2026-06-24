@@ -4,7 +4,8 @@ param(
     [switch]$NoBuild,
     [switch]$NoScreenshots,
     [switch]$UpdateBaseline,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Profile
 )
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
@@ -128,6 +129,79 @@ if ($cfg.watch) {
 
 if (-not $DryRun) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
+# 4b. -Profile: PC-sampling profiler pass (runs INSTEAD of the gate at steps 5-7).
+#     Dump g_pc_samples via gdb after a deterministic run, filter to the ROM range,
+#     then symbolize + render through the analyzer profile sub-pass. Realizes the
+#     PROFILING.md roadmap item; gated and additive (no effect without -Profile).
+if ($Profile) {
+    if ($Backend -ne "blastem") { throw "mdbug -Profile supports the blastem backend only (got '$Backend'). The PC-ring dump is BlastEm-specific; track a per-backend pcdump capability as a follow-up." }
+    if (-not $gdb) { $gdb = Resolve-Gdb }
+    $prof = $cfg.profile
+
+    # config.profile.* with fallbacks to build.* / the proven PROFILING.md defaults.
+    $pElf     = if ($prof -and $prof.elf) { Resolve-BuildPath $prof.elf } else { $elf }
+    $pRom     = if ($prof -and $prof.rom) { Resolve-BuildPath $prof.rom } else { $rom }
+    $pSymzr   = if ($prof -and $prof.symbolizer) { [string]$prof.symbolizer } else { "auto" }
+    $pFmt     = if ($prof -and $prof.format) { [string]$prof.format } else { "md" }
+    $pTrigger = if ($prof -and $prof.trigger) { [string]$prof.trigger } else { "dbg_perf_tick" }
+    # Test property PRESENCE, not truthiness, so a legitimate 0 (e.g. romMin:0) is honored.
+    $pCont    = if ($prof -and $prof.PSObject.Properties['continues']) { [int]$prof.continues } else { 82 }
+    $pMax     = if ($prof -and $prof.PSObject.Properties['max'])       { [int]$prof.max }       else { 1024 }
+    $pRomMin  = if ($prof -and $prof.PSObject.Properties['romMin'])    { [int64]$prof.romMin }  else { 512 }       # 0x200 entry
+    $pRomMax  = if ($prof -and $prof.PSObject.Properties['romMax'])    { [int64]$prof.romMax }  else { 2097152 }   # 0x200000
+    $ext = switch ($pFmt) { "folded" { "folded" } "speedscope" { "speedscope.json" } "perfetto" { "perfetto.json" } default { "md" } }
+    $profOut = if ($prof -and $prof.out) { Resolve-RepoPath $prof.out } else { Join-Path $outDir "profile.$ext" }
+    $pcRaw     = Join-Path $outDir "pc_raw.txt"
+    $pcSamples = Join-Path $outDir "pc_samples.txt"
+
+    $dumpArgs = @{ Elf = $pElf; Gdb = $gdb; Port = $be.gdbPort; RingMax = $pMax
+                   TriggerSymbol = $pTrigger; Continues = $pCont; OutFile = $pcRaw }
+
+    # The analyzer profile sub-pass (single entry point): resolves build.elf/rom +
+    # symbol.txt itself and owns optional-dep handling + the nm fallback.
+    $sha = try { (git -C $cfgDir rev-parse --short HEAD 2>$null) } catch { $null }; if (-not $sha) { $sha = "?" }
+    $profArgs = @("-m", "analyzer.cli", "--config", $Config, "--backend", $Backend,
+        "--profile-samples", $pcSamples, "--symbolizer", $pSymzr, "--format", $pFmt,
+        "--out", $profOut, "--git-sha", $sha, "--project", (Split-Path $buildCwd -Leaf))
+    if ($prof -and $prof.top)    { $profArgs += @("--top", [string]$prof.top) }
+    if ($prof -and $prof.symbol) { $profArgs += @("--disasm", [string]$prof.symbol) }
+
+    if ($DryRun) {
+        Write-Output "PROFILE dump (gdb script):"
+        $dumpArgs.DryRun = $true
+        & (Join-Path $here "lib\gdb_pc_dump.ps1") @dumpArgs
+        Write-Output "PROFILE analyze: $python $($profArgs -join ' ')"
+        return
+    }
+
+    # 1. dump the PC ring (gdb over BlastEm -D), mirroring backends/blastem.ps1's launch.
+    $emu = Start-Process -FilePath $be.path -ArgumentList "`"$pRom`" -D" -PassThru
+    try {
+        if ($emu -and -not $emu.HasExited) { $emu.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High }
+        for ($i = 0; $i -lt 100 -and -not (Get-NetTCPConnection -LocalPort $be.gdbPort -State Listen -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }
+        & (Join-Path $here "lib\gdb_pc_dump.ps1") @dumpArgs
+    } finally { if ($emu -and -not $emu.HasExited) { Stop-Process -Id $emu.Id -Force } }
+
+    # 2. filter dumped words to the ROM range -> one PC per line (PROFILING.md TL;DR).
+    Select-String -LiteralPath $pcRaw -Pattern '0x[0-9a-fA-F]{4,8}' -AllMatches |
+        ForEach-Object { $_.Matches } | ForEach-Object { $_.Value } |
+        Where-Object { $v = [convert]::ToInt64($_, 16); $v -lt $pRomMax -and $v -ge $pRomMin } |
+        Set-Content -LiteralPath $pcSamples -Encoding ASCII
+
+    # 3. symbolize + render.
+    Push-Location $here
+    try { & $python @profArgs; $rc = $LASTEXITCODE } finally { Pop-Location }
+
+    # 4. append under the gate report if one exists, else stand alone.
+    $reportMd = Join-Path $outDir "report.md"
+    if ((Test-Path -LiteralPath $reportMd) -and (Test-Path -LiteralPath $profOut)) {
+        Add-Content -LiteralPath $reportMd -Value "`n## PC profile`n" -Encoding UTF8
+        Add-Content -LiteralPath $reportMd -Value (Get-Content -LiteralPath $profOut -Raw) -Encoding UTF8
+    }
+    Write-Output "mdbug: profile written to $profOut"
+    exit $rc
+}
+
 # 5. sample pass
 $adapter = Join-Path $here "backends\$Backend.ps1"
 $sampleArgs = @{
@@ -154,7 +228,7 @@ if (-not $NoScreenshots -and $checkpoints.Count -gt 0) {
 
 # 7. analyze + gate
 $fmt = if ($Backend -eq "emusplatter" -and $be.sampleMode -eq "export") { "export" } else { "gdb" }
-$sha = (git -C $cfgDir rev-parse --short HEAD 2>$null)
+$sha = try { (git -C $cfgDir rev-parse --short HEAD 2>$null) } catch { $null }
 if (-not $sha) { $sha = "?" }
 $analyzeArgs = @("-m", "analyzer.cli", "--config", $Config, "--backend", $Backend,
     "--samples-file", $dump, "--samples-format", $fmt, "--shots-dir", $shotsDir,

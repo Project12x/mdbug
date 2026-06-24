@@ -23,6 +23,62 @@ def _snapshot_path(cfg_dir, name):
     return os.path.join(cfg_dir, "perf", "snap.%s.json" % name)
 
 
+def _build_path(cfg, cfg_dir, key):
+    """Resolve a ``build.<key>`` path relative to the config dir (or None)."""
+    raw = (cfg.get("build") or {}).get(key)
+    if not raw:
+        return None
+    return raw if os.path.isabs(raw) else os.path.join(cfg_dir, raw)
+
+
+def _run_profile(args, cfg, cfg_dir):
+    """PC-sampling profile sub-pass: symbolize a flat PC sample file into a report or
+    interchange artifact via :mod:`analyzer.profile`.
+
+    Dispatched by ``--profile-samples`` ahead of the gate's ``--samples-file`` check, so
+    a profile run is fully independent of the gate pipeline. Honors the optional config
+    ``profile`` block (elf/rom/symbols/symbolizer/format/top/symbol overrides), defaulting
+    elf/rom to ``build.*`` and the nm symbol.txt to the ELF's directory. profile.py owns
+    all optional-dep handling (pyelftools/capstone) and the nm fallback.
+    """
+    from analyzer import profile as _profile
+    prof = cfg.get("profile") or {}
+
+    def _cfg_path(p):
+        if not p:
+            return None
+        return p if os.path.isabs(p) else os.path.join(cfg_dir, p)
+
+    elf = _cfg_path(prof.get("elf")) or _build_path(cfg, cfg_dir, "elf")
+    rom = _cfg_path(prof.get("rom")) or _build_path(cfg, cfg_dir, "rom")
+    symbols = _cfg_path(prof.get("symbols"))
+    if not symbols and elf:
+        symbols = os.path.join(os.path.dirname(elf), "symbol.txt")
+
+    # CLI flag wins; else the profile.* config value; else the argparse default.
+    symbolizer = args.symbolizer if args.symbolizer != "auto" else prof.get("symbolizer", "auto")
+    fmt = args.format if args.format != "md" else prof.get("format", "md")
+    disasm_sym = args.disasm or prof.get("symbol")
+    top = args.top if args.top else int(prof.get("top", 0) or 0)
+
+    pargv = ["--samples", args.profile_samples, "--symbolizer", symbolizer,
+             "--format", fmt, "--route", (prof.get("route") or args.project),
+             "--git-sha", args.git_sha]
+    if symbols:
+        pargv += ["--symbols", symbols]
+    if elf:
+        pargv += ["--elf", elf]
+    if rom:
+        pargv += ["--rom", rom]
+    if disasm_sym:
+        pargv += ["--disasm", disasm_sym]
+    if top:
+        pargv += ["--top", str(top)]
+    if args.out:
+        pargv += ["--out", args.out]
+    return _profile.main(pargv)
+
+
 def _run_compare(args, cfg, cfg_dir):
     """Load two named snapshots and render their side-by-side delta table."""
     a_name, b_name = args.compare
@@ -58,6 +114,13 @@ def run(argv):
     ap.add_argument("--git-sha", default="?")
     ap.add_argument("--date", default="?")
     ap.add_argument("--project", default="?")
+    # PC-sampling profile sub-pass (independent of the gate); see _run_profile.
+    ap.add_argument("--profile-samples", default=None,
+                    help="PC sample file -> run the profile sub-pass instead of the gate")
+    ap.add_argument("--symbolizer", choices=["auto", "elf", "nm"], default="auto")
+    ap.add_argument("--format", choices=["md", "folded", "speedscope", "perfetto"], default="md")
+    ap.add_argument("--disasm", default=None, metavar="SYMBOL")
+    ap.add_argument("--top", type=int, default=0)
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
@@ -65,6 +128,8 @@ def run(argv):
 
     if args.compare:
         return _run_compare(args, cfg, cfg_dir)
+    if args.profile_samples:
+        return _run_profile(args, cfg, cfg_dir)
     if not args.samples_file or not args.samples_format:
         ap.error("--samples-file and --samples-format are required unless --compare is used")
 

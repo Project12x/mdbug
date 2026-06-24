@@ -156,6 +156,30 @@
         "outDir": { "type": "string" }
       },
       "additionalProperties": false
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "PC-sampling profiler (mdbug.ps1 -Profile / analyzer.profile). Optional; the gate works without it.",
+      "properties": {
+        "symbolizer": { "type": "string", "enum": ["auto", "elf", "nm"], "default": "auto",
+                        "description": "PC symbolization source. auto = prefer ELF when pyelftools + build.elf resolve, else the nm symbol.txt floor; elf = require the rich path; nm = always legacy." },
+        "format":     { "type": "string", "enum": ["md", "folded", "speedscope", "perfetto"], "default": "md",
+                        "description": "Report format. md = flame table; folded/speedscope/perfetto are interchange artifacts (carry inline call frames when DWARF is present)." },
+        "elf":        { "type": "string", "description": "ROM ELF for true-range/inline symbolization (e.g. out/rom.out). Defaults to build.elf." },
+        "rom":        { "type": "string", "description": "Raw ROM bytes for --disasm (e.g. out/rom.bin). Defaults to build.rom." },
+        "symbols":    { "type": "string", "description": "nm symbol.txt fallback path. Defaults to <dir of elf>/symbol.txt." },
+        "symbol":     { "type": "string", "description": "Hot symbol to disassemble + weight per instruction (--disasm). Skipped cleanly if capstone/ELF/ROM absent." },
+        "route":      { "type": "string", "description": "Scenario label for the report header." },
+        "top":        { "type": "integer", "description": "Limit the flame table to the top N functions (0 = all)." },
+        "trigger":    { "type": "string", "description": "gdb break symbol fired once per frame to step the ring fill (default dbg_perf_tick)." },
+        "armFrame":   { "type": "integer", "description": "Documentation only (no harness effect): mirrors the ROM's compiled-in PC_SAMPLE_ARM_FRAME -- the settle frames before the ring is meaningful. Change it in the build, not here." },
+        "continues":  { "type": "integer", "description": "Number of break-continues to fill the ring before dumping (PROFILING.md TL;DR uses ~82)." },
+        "max":        { "type": "integer", "description": "PC_SAMPLE_MAX ring size; the count in x/<MAX>xw &g_pc_samples (default 1024)." },
+        "romMin":     { "type": "integer", "description": "Lower PC bound for the ROM-range sample filter (default 512 = 0x200 entry)." },
+        "romMax":     { "type": "integer", "description": "Upper PC bound for the ROM-range filter (default 2097152 = 0x200000)." },
+        "out":        { "type": "string", "description": "Profile report path. Default <outDir>/profile.<ext>." }
+      }
     }
   }
 }

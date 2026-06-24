@@ -148,3 +148,26 @@ def test_run_emits_trajectory_when_watch_configured(tmp_path):
     assert "## Trajectory" in md
     assert "| sample | cam_x |" in md
     assert "| 0 | 16 |" in md and "| 1 | 32 |" in md
+
+
+def test_profile_samples_dispatches_nm_path(tmp_path):
+    # --profile-samples runs the profile sub-pass *before* the gate's --samples-file
+    # check, on the always-available nm floor (no pyelftools/capstone, no --elf).
+    sym = tmp_path / "symbol.txt"
+    sym.write_text("00000200 T func_a\n00000210 T func_b\n")
+    samples = tmp_path / "pc.txt"
+    samples.write_text("0x200\n0x210\n0x214\n")  # func_a x1, func_b x2
+    out = tmp_path / "profile.folded"
+    cfg = {
+        "backends": {"default": "blastem", "blastem": {}},
+        "perf": {"symbol": "g", "count": 1, "width": "u16",
+                 "fields": [{"index": 0, "name": "load", "aggregate": "max", "unit": "%", "gate": True}]},
+        "gate": {"baseline": "b.json", "ceilings": {"load": 180}, "tolerance": {"default": 0}},
+        "profile": {"symbols": str(sym), "format": "folded"},
+    }
+    cp = tmp_path / "c.json"; cp.write_text(json.dumps(cfg))
+    # note: no --samples-file/--samples-format -> would error in the gate path; profile dispatch wins.
+    rc = run(["--config", str(cp), "--profile-samples", str(samples), "--out", str(out)])
+    assert rc == 0
+    folded = out.read_text()
+    assert "func_b 2" in folded and "func_a 1" in folded

@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Profiler toolchain — ELF/DWARF symbolization, instruction disasm, interchange
+  artifacts, and a first-class `-Profile` pass.** Adopted three OPTIONAL, import-guarded
+  libs (pinned in `requirements.txt`); the stdlib nm floor (`profile.py` over
+  `symbol.txt`) still works with none installed.
+  - `analyzer/symbolize.py` (**pyelftools**): reads `.symtab` for **true** `st_size`
+    ranges (EM_68K-checked) and the DWARF line program + inline-subroutine tree —
+    `pc -> file:line` and the **inline call frames** behind SGDK `-O3`/`-flto` synthetic
+    names (`.isra`/`.constprop`/`.lto_priv`/`.part`). Honors `profile.py`'s exact ranked
+    contract; falls back to the nm path on any error / missing ELF / absent lib.
+  - `analyzer/reporters.py` (pure stdlib): **folded** (Brendan-Gregg), **speedscope**,
+    and **Perfetto/chrome-trace** renderers + `render_disasm`; valid on both the ELF and
+    nm paths (inline frames when DWARF is present).
+  - `analyzer/disasm.py` (**capstone** `CS_ARCH_M68K`): disassembles a hot symbol's true
+    range from ROM bytes and weights **each 68k instruction** by the PCs in it.
+  - CLI wiring: `profile.py` gains `--elf`/`--rom`/`--symbolizer {auto,elf,nm}`/`--format
+    {md,folded,speedscope,perfetto}`/`--disasm SYMBOL` (all optional-dep imports lazy in
+    `main()`); `cli.py` gains a `--profile-samples` sub-pass dispatched ahead of the gate.
+  - **`mdbug.ps1 -Profile`**: a first-class pass — gdb dump of `g_pc_samples`
+    (`lib/gdb_pc_dump.ps1`) + ROM-range filter + symbolize/render + a `## PC profile`
+    report section, driven by a new config `profile.*` block (`-DryRun` prints the gdb
+    script + python command). Schema gains the optional `profile` object.
+  - **Call-graph tracing** (md-profiler): `TRACE.md` documents the complementary MIT
+    tracing profiler + its host-only GPLv3 BlastEm fork (run over a file, never linked);
+    `instrumentation/mdp_label.h` is an optional, flag-gated (`DEBUG_MDP_LABELS`) drop-in
+    for annotating inlined functions without changing codegen.
+  - 41 new host tests (`test_symbolize.py`/`test_reporters.py`/`test_disasm.py` with
+    `importorskip` + a synthetic-ELF fixture; a `test_cli.py` nm-path dispatch test).
 - **PC-sampling profiler — docs + reusable drop-in instrumentation.** Documented the
   end-to-end profiler workflow in **`PROFILING.md`**: the per-scanline HInt sampler that reads
   the *interrupted* 68k PC from the hardware interrupt frame (an asm trampoline; a C interrupt

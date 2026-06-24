@@ -105,7 +105,47 @@ Two ways:
   BlastEm, so on a weak host budget enough timeout.
 
 ## Step 4 — symbolize
-`python -m analyzer.profile --symbols out/symbol.txt --samples out/pc_samples.txt --out out/profile.md [--route LABEL] [--top N]`.
+Floor (always works): `python -m analyzer.profile --symbols out/symbol.txt --samples out/pc_samples.txt --out out/profile.md [--route LABEL] [--top N]`.
+
+Rich (optional libs): add `--elf out/rom.out` (pyelftools true ranges + inline names),
+`--format folded|speedscope|perfetto` (interchange artifacts), and `--rom out/rom.bin
+--disasm SYMBOL` (capstone per-instruction weights). `--symbolizer auto` (default) uses the
+ELF when it and pyelftools are present, else the nm floor.
+
+**Or skip Steps 3–4 entirely:** `mdbug.ps1 -Config <cfg> -Profile` does the gdb dump +
+ROM-range filter + symbolize in one pass, driven by the config `profile.*` block
+(`-DryRun` prints the gdb script + python command without launching anything). See the
+`profile` block in `config.schema.json`.
+
+---
+
+## Symbolization & artifacts
+
+The `--symbols out/symbol.txt` path above is the **floor — pure stdlib, always
+available**: nm-style address ranges, function-level only. Two OPTIONAL libs upgrade
+it; both are import-guarded, so the floor never depends on them.
+
+```powershell
+pip install -r requirements.txt          # pyelftools + capstone (optional)
+```
+
+- **ELF/DWARF symbolization (`pyelftools`).** Point the profiler at the ELF
+  (`out/rom.out`) instead of `symbol.txt` and it reads **true** `st_size` ranges
+  from `.symtab` plus the DWARF line program and inline-subroutine tree — the
+  `addr2line -i` equivalent that resolves `pc -> file:line` and the **inline call
+  frames** hidden behind SGDK `-O3`/`-flto` synthetic names
+  (`.isra` / `.constprop` / `.lto_priv` / `.part`). When the lib is absent or no ELF is
+  configured, it falls back to the `symbol.txt` nm path with identical ranking.
+- **Interchange artifacts.** The same symbolized counts render to **folded stacks**
+  (Brendan-Gregg, for `flamegraph.pl`/inferno), the **speedscope** `sampled` format,
+  and **Perfetto / `chrome://tracing`** trace JSON — pure-stdlib reporters, so they
+  work on both the ELF and nm paths (with inline frames the stacks carry the full call
+  frame; without, each function is one flat frame).
+- **`--disasm` drill-down (`capstone`).** One level below the flame table: disassemble a
+  hot symbol's true byte range out of the ROM and weight **each 68k instruction** by the
+  PCs that landed in it, flagging the hottest — *which instruction inside the function*.
+  Needs `pyelftools` for the exact range; skips with a one-line note when `capstone` is
+  absent.
 
 ---
 
@@ -132,6 +172,12 @@ Two ways:
   in-ROM HInt) — a future backend addition.
 
 ## Status / roadmap
-The dump step is a documented gdb procedure today (the TL;DR script). Integrating it as a
-first-class `mdbug.ps1 -Profile` pass (config-driven dump + `profile.py` + a report section)
-is the next step, tracked with the broader MD debug-suite work.
+**Landed:** the first-class `mdbug.ps1 -Profile` pass (config-driven dump + ROM-range
+filter + symbolize + a `## PC profile` report section), the ELF/DWARF symbolizer
+(`pyelftools`), the folded/speedscope/Perfetto reporters, and `--disasm` (`capstone`).
+Call-graph **tracing** (the complementary md-profiler tool) is documented in `TRACE.md`.
+
+**Next:** a **zero-skid** sampler — a BlastEm-side PC histogram with no in-ROM HInt, which
+removes the observer effect entirely. That is an emulator-backend addition (a per-backend
+`pcdump` capability); the analyzer is already clock-agnostic and consumes whatever flat PC
+list a histogram clock emits, so no analyzer change is needed.

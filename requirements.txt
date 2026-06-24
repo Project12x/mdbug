@@ -1,0 +1,17 @@
+# mdbug — OPTIONAL analyzer dependencies.
+#
+# The analyzer core is stdlib-only: the perf gate and the profiler's nm-range
+# floor (analyzer/profile.py over symbol.txt) need nothing here. These two libs
+# are an opt-in upgrade for the ELF-backed profiler path:
+#
+#   pyelftools  -> ELF/DWARF symbolization (analyzer/symbolize.py): true st_size
+#                  ranges + addr2line-style file:line and inline frames, which
+#                  recover SGDK -O3/-flto synthetic names (.isra/.constprop/...).
+#   capstone    -> 68k instruction-level disasm drill-down (analyzer/disasm.py):
+#                  weights each decoded instruction by its PC samples.
+#
+# Both are import-guarded; when absent (or build.elf is unconfigured) the
+# analyzer falls back to the symbol.txt nm path. Install only if you want the
+# richer output:  pip install -r requirements.txt
+pyelftools==0.33
+capstone==5.0.9
