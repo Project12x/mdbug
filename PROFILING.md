@@ -87,7 +87,7 @@ per-scanline HInt asm trampoline  ->  x/<MAX>xw &g_pc_samples ->  symbolize vs s
    ```
 
 Knobs (override in `build_config.h` or before including the header): `PC_SAMPLE_MAX` (ring
-size), `PC_SAMPLE_SKIP` (store every Nth scanline — spreads samples over more frames),
+size), `PC_SAMPLE_SKIP` (HInt fires every Nth scanline — hardware subsample; spreads samples + cuts overhead),
 `PC_SAMPLE_ARM_FRAME` (when to start, after the settle).
 
 ## Step 2 — build with a deterministic workload + the flag
@@ -115,15 +115,14 @@ Two ways:
   fixed script, so the sampled PC distribution is deterministic and host-independent. A slow
   laptop yields the *same* profile, just slower. So you can profile anywhere, or on a fast
   machine, and trust it everywhere.
-- **The HInt is an observer effect — read the RELATIVE split, not absolute time.** Firing the
-  HInt every scanline adds a roughly *uniform* per-line overhead (~10-15%/frame in the
-  default `VDP_setHIntCounter(0)` form), so the **percentage split** between functions holds
-  but **absolute** timing is inflated. Never read perf *counters* (scroll/overrun/cpu_load)
-  from a `pc-sample` build — those come from the clean gate build.
-  - **Lower-overhead variant:** in `pc_sample_install`, use `VDP_setHIntCounter(PC_SAMPLE_SKIP-1)`
-    so the HInt *fires* every Nth line (hardware) instead of firing every line and discarding
-    in software — same sample density, ~`SKIP`× less overhead. (Then `PC_SAMPLE_SKIP` in the
-    recorder can be 1.)
+- **The HInt is an observer effect — read the RELATIVE split, not absolute time.** The
+  instrumentation fires the HInt every `PC_SAMPLE_SKIP`-th scanline (hardware subsample via
+  `VDP_setHIntCounter(PC_SAMPLE_SKIP-1)`), so the trampoline overhead is roughly *uniform* and
+  small — about `15/PC_SAMPLE_SKIP` %/frame (~2% at the default `SKIP`=8). The **percentage
+  split** between functions therefore holds; **absolute** timing is still slightly inflated, so
+  never read perf *counters* (scroll/overrun/cpu_load) from a `pc-sample` build — those come
+  from the clean gate build. The zero-skid fix (no in-ROM HInt at all) is a future
+  emulator-side PC histogram.
 - **Sampling spans the frames you choose.** With the default arm/skip the window mixes
   busy + idle frames (you'll see `VDP_waitVBlank` as idle). Gate `pc_sample_arm` to the
   heavy frames to sharpen the work split.

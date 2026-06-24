@@ -28,7 +28,7 @@
 #define PC_SAMPLE_MAX 1024        // ring capacity (PC_SAMPLE_MAX * 4 bytes RAM)
 #endif
 #ifndef PC_SAMPLE_SKIP
-#define PC_SAMPLE_SKIP 8          // store every Nth scanline -> spread over more frames
+#define PC_SAMPLE_SKIP 8          // HInt fires every Nth scanline (hardware subsample)
 #endif
 #ifndef PC_SAMPLE_ARM_FRAME
 #define PC_SAMPLE_ARM_FRAME 60u   // arm after the settle so samples land in the hot section

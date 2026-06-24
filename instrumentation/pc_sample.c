@@ -4,7 +4,6 @@
 volatile u32 g_pc_samples[PC_SAMPLE_MAX];
 volatile u16 g_pc_sample_idx = 0;
 volatile u16 g_pc_sample_armed = 0;
-static volatile u16 s_skip = 0;
 
 // The per-scanline HInt is a tiny asm trampoline (pc_sample_hint.s) that reads the
 // interrupted 68000 PC straight from the hardware interrupt frame and calls this
@@ -21,21 +20,19 @@ __attribute__((noinline, used)) void pc_sample_done(void) {}
 
 __attribute__((used)) void pc_sample_record(u32 pc) {
   if (g_pc_sample_armed && g_pc_sample_idx < PC_SAMPLE_MAX) {
-    if (++s_skip >= PC_SAMPLE_SKIP) {  // subsample to spread the ring over more frames
-      s_skip = 0;
-      g_pc_samples[g_pc_sample_idx++] = pc;
-      if (g_pc_sample_idx >= PC_SAMPLE_MAX) pc_sample_done();
-    }
+    g_pc_samples[g_pc_sample_idx++] = pc;
+    if (g_pc_sample_idx >= PC_SAMPLE_MAX) pc_sample_done();
   }
 }
 
 void pc_sample_install(void) {
   g_pc_sample_idx = 0;
   g_pc_sample_armed = 0;
-  s_skip = 0;
+  // Hardware subsample: fire the HInt every PC_SAMPLE_SKIP-th scanline (counter N
+  // => every N+1 lines) instead of firing every line and discarding in software --
+  // same sample density, ~PC_SAMPLE_SKIP x less observer overhead.
   SYS_setHIntCallback(pc_sample_hint);
-  VDP_setHIntCounter(0);  // fire every scanline (see PROFILING.md "observer effect"
-                          // for a lower-overhead VDP_setHIntCounter(SKIP-1) variant)
+  VDP_setHIntCounter(PC_SAMPLE_SKIP - 1);
   VDP_setHInterrupt(TRUE);
 }
 
