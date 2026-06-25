@@ -36,7 +36,7 @@ pwsh -File mdbug.ps1 -Config <your.config.json> -NoBuild
 pwsh -File mdbug.ps1 -Config <your.config.json> -DryRun
 ```
 
-See `examples/example.config.json` for an annotated full config. The JSON schema is in `config.schema.json`.
+See `examples/example.config.json` for an annotated full config. The JSON schema is in `config.schema.json`. The long-term tool-suite plan lives in `ROADMAP.md`.
 
 ## Optional features
 
