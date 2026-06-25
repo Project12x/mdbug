@@ -22,7 +22,7 @@ The analyzer is a pure Python package with no runtime dependencies beyond the st
 Both parsers produce the same normalized shape so downstream code is format-agnostic.
 
 **`analyzer/gate.py`**
-- `aggregate(samples, fields)` — reduces the sample list to `{field_name: scalar}` by applying each field's declared aggregate function (`max`, `last`, or `sum`) across all samples.
+- `aggregate(samples, fields)` — reduces the sample list to `{field_name: scalar}` by applying each field's declared aggregate function (`max`, `last`, `sum`, `median`, `p90`, `range`, `stdev`, `mean_abs_delta`, or `periodicity`) across all samples.
 - `gate(observed, baseline_fields, ceilings, tolerances, fields, done_ok)` — checks each gated field against (a) its configured ceiling (absolute hard cap) and (b) `baseline + tolerance` (regression check). Also fails when `done_ok` is False (scenario did not complete). Returns a verdict dict with `passed`, `rows` (one per field with observed/baseline/delta/ceiling/result), and `reasons` (failure descriptions).
 
 **`analyzer/report.py`**
@@ -45,7 +45,7 @@ Both parsers produce the same normalized shape so downstream code is format-agno
   dump procedure). This shares the gate's host-independence: the emulated sampling is
   deterministic, so the profile is reproducible regardless of host speed.
 
-The analyzer never interprets what a metric means — it samples named fields from a flat array and gates them against configured ceilings and a committed baseline. Adding a new metric is purely a config change.
+The analyzer never interprets what a metric means — it samples named fields from a flat array and gates them against configured ceilings and a committed baseline. Adding a new direct or derived metric is purely a config change.
 
 ---
 

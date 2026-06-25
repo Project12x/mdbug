@@ -85,7 +85,7 @@
             "properties": {
               "index":     { "type": "integer" },
               "name":      { "type": "string" },
-              "aggregate": { "type": "string", "enum": ["max", "last", "sum", "median", "p90"] },
+              "aggregate": { "type": "string", "enum": ["max", "last", "sum", "median", "p90", "range", "stdev", "mean_abs_delta", "periodicity"] },
               "unit":      { "type": "string" },
               "gate":      { "type": "boolean" }
             },

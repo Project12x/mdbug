@@ -6,7 +6,7 @@
 
 A consuming ROM implements these four things; everything else is config:
 
-1. **Perf block** — a global symbol holding a fixed-width array of per-interval worst-case values (e.g. `volatile u16 g_perf[N]`). The config declares the symbol name, element count, element width, and a field map (`index -> { name, aggregate: max|last|sum, unit, gate }`). GDB mode references the symbol by name; export mode resolves its work-RAM address from the ELF symbol table.
+1. **Perf block** — a global symbol holding a fixed-width array of per-interval worst-case values (e.g. `volatile u16 g_perf[N]`). The config declares the symbol name, element count, element width, and a field map (`index -> { name, aggregate: max|last|sum|median|p90|range|stdev|mean_abs_delta|periodicity, unit, gate }`). GDB mode references the symbol by name; export mode resolves its work-RAM address from the ELF symbol table.
 
 2. **Sample trigger** — a no-op breakpoint symbol (e.g. `dbg_perf_tick`) the ROM calls once per interval after writing the block and resetting its accumulators. The GDB sampler breaks here each cycle; the harness takes the field-wise max across all samples. The export sampler reads the block every frame and aggregates across all dumps, so no trigger call is needed in that path.
 
@@ -43,6 +43,7 @@ See `examples/example.config.json` for an annotated full config. The JSON schema
 - **Validity guard** — `gate.validity.requireNonzero: [<field>, ...]` marks a run **INVALID** (a third verdict beside PASS/FAIL, with a nonzero exit) when a listed field is zero/missing, catching no-activity runs (e.g. the camera never moved).
 - **A/B compare** — `python -m analyzer.cli --config <c> --samples-file <s> --samples-format <f> --save-snapshot NAME` writes `perf/snap.NAME.json`; `python -m analyzer.cli --config <c> --compare A B --out compare.md` renders a `| Metric | A | B | Delta |` table (no live samples needed).
 - **Watch trace** — top-level `watch: [{ name, symbol, format? }]` traces globals across intervals; the report gains a **Trajectory** table (GDB-mode backends only).
+- **Jitter / periodicity metrics** — `range`, `stdev`, `mean_abs_delta`, and `periodicity` aggregate modes summarize pacing steadiness from any configured field. For true per-frame Jazz MD samples, set the build command to `build.bat autoplay frame-samples` and raise `perf.samples` to cover the full route; the default build still snapshots every 16 frames.
 
 See `HOWTO.md` for full details on each.
 

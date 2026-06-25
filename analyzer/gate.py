@@ -17,12 +17,62 @@ def _percentile(vals, pct):
     return xs[min(k, len(xs) - 1)]
 
 
+def _stdev(vals):
+    """Population standard deviation, rounded to the nearest integer."""
+    if not vals:
+        return 0
+    mean = sum(vals) / float(len(vals))
+    variance = sum((v - mean) * (v - mean) for v in vals) / float(len(vals))
+    return int(math.sqrt(variance) + 0.5)
+
+
+def _span(vals):
+    return (max(vals) - min(vals)) if vals else 0
+
+
+def _mean_abs_delta(vals):
+    """Mean absolute difference between adjacent samples, integer-rounded."""
+    if len(vals) < 2:
+        return 0
+    total = sum(abs(vals[i] - vals[i - 1]) for i in range(1, len(vals)))
+    return int((total / float(len(vals) - 1)) + 0.5)
+
+
+def _periodicity(vals):
+    """Peak positive autocorrelation across lags 2..N/2, scaled 0..1000.
+
+    This is a compact detector for repeating frame-cost structure (for example a
+    sawtooth every few frames). A flat line has no signal and returns 0.
+    """
+    if len(vals) < 4:
+        return 0
+    mean = sum(vals) / float(len(vals))
+    centered = [v - mean for v in vals]
+    max_lag = min(len(vals) // 2, 60)
+    best = 0.0
+    for lag in range(2, max_lag + 1):
+        a = centered[:-lag]
+        b = centered[lag:]
+        energy_a = sum(v * v for v in a)
+        energy_b = sum(v * v for v in b)
+        if energy_a == 0 or energy_b == 0:
+            continue
+        corr = sum(x * y for x, y in zip(a, b)) / math.sqrt(energy_a * energy_b)
+        if corr > best:
+            best = corr
+    return int(best * 1000.0 + 0.5)
+
+
 _AGG = {
     "max": lambda vals: max(vals) if vals else 0,
     "last": lambda vals: vals[-1] if vals else 0,
     "sum": lambda vals: sum(vals),
     "median": lambda vals: _percentile(vals, 50),
     "p90": lambda vals: _percentile(vals, 90),
+    "range": _span,
+    "stdev": _stdev,
+    "mean_abs_delta": _mean_abs_delta,
+    "periodicity": _periodicity,
 }
 
 

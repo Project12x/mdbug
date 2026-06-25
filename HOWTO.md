@@ -43,7 +43,7 @@ this entirely.
   | overrun | 0 frames | 0 | +0 | - | pass |
 
   - **Metric** — field name from config.
-  - **Observed** — the aggregate value (max/last/sum across samples) with its unit.
+  - **Observed** — the aggregate value (for example max/last/sum/median/p90, or a derived jitter/periodicity aggregate) with its unit.
   - **Baseline** — the committed baseline value for this field (`-` when no baseline exists yet).
   - **Delta** — observed minus baseline (`-` when no baseline).
   - **Ceiling** — the hard absolute cap from `config.gate.ceilings` (`-` when none configured).
@@ -156,7 +156,7 @@ cd C:\path\to\mdbug
 python -m pytest -v
 ```
 
-Expected: 55 passed. The suite covers `parse_gdb_dump`, `parse_export`, `parse_watch`, `aggregate`, `gate` (incl. validity/INVALID), `render_report` (incl. trajectory), `render_compare`, `load_config`, the PC-sampling symbolizer, and the CLI round-trip (incl. snapshot/compare modes).
+Expected: all tests pass. The suite covers `parse_gdb_dump`, `parse_export`, `parse_watch`, `aggregate` (incl. jitter/periodicity modes), `gate` (incl. validity/INVALID), `render_report` (incl. trajectory), `render_compare`, `load_config`, the PC-sampling symbolizer, and the CLI round-trip (incl. snapshot/compare modes).
 
 `jsonschema` is an optional dev dependency used to validate configs against `config.schema.json`. If not installed, schema validation is skipped. Install with:
 
@@ -193,6 +193,13 @@ Recommended procedure for a trustworthy gate run:
 5. If variance is still high, run 2-3 times and look at the best (or median) before deciding to rebaseline.
 
 The vcounter-derived numbers (`overrun`, `scroll_max`, `phys_max`, `sprite_max`) are generally more trustworthy than `cpu_load_max` because they are measured inside emulated time.
+
+For frame-pacing work, use aggregate modes like `stdev`, `mean_abs_delta`, and
+`periodicity` on the vcounter or section-cost fields. Jazz MD's default perf
+snapshot is every 16 frames; when you need true per-frame pacing samples for
+SD-SAWTOOTH-style checks, set the build command to
+`build.bat autoplay frame-samples` and raise `perf.samples` enough to cover the
+route.
 
 ## Install BlastEm (blastem backend)
 

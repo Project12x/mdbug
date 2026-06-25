@@ -69,6 +69,27 @@ def test_aggregate_percentile_empty_is_zero():
     fields = [{"index": 0, "name": "p", "aggregate": "p90", "unit": "", "gate": False}]
     assert aggregate([], fields) == {"p": 0}
 
+def test_aggregate_jitter_metrics():
+    fields = [
+        {"index": 0, "name": "span", "aggregate": "range", "unit": "scanlines", "gate": False},
+        {"index": 0, "name": "sd", "aggregate": "stdev", "unit": "scanlines", "gate": False},
+        {"index": 0, "name": "delta", "aggregate": "mean_abs_delta", "unit": "scanlines", "gate": False},
+    ]
+    assert aggregate([[10], [20], [10], [20]], fields) == {
+        "span": 10,
+        "sd": 5,
+        "delta": 10,
+    }
+
+def test_aggregate_periodicity_detects_repeating_sawtooth():
+    fields = [{"index": 0, "name": "period", "aggregate": "periodicity", "unit": "score", "gate": False}]
+    samples = [[v] for v in [5, 5, 5, 120, 5, 5, 5, 120, 5, 5, 5, 120]]
+    assert aggregate(samples, fields)["period"] >= 900
+
+def test_aggregate_periodicity_flat_signal_is_zero():
+    fields = [{"index": 0, "name": "period", "aggregate": "periodicity", "unit": "score", "gate": False}]
+    assert aggregate([[42], [42], [42], [42]], fields)["period"] == 0
+
 def test_aggregate_index_out_of_range_raises():
     import pytest
     fields = [{"index": 5, "name": "x", "aggregate": "max", "unit": "", "gate": True}]

@@ -47,6 +47,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   project report and judge the typical and near-worst frame, not just the max.
   Schema `aggregate` enum and `tests/test_gate.py` updated. First consumer:
   jazzmd `scroll_median` / `scroll_p90`.
+- Jitter/periodicity aggregate modes for feel-axis pacing work:
+  `range`, `stdev`, `mean_abs_delta`, and `periodicity` (peak positive
+  autocorrelation, 0-1000 score). Jazz MD now reports vcounter and scroll
+  jitter/periodicity fields, and `build.bat autoplay frame-samples` makes
+  `g_perf` snapshot every frame for true per-frame pacing runs (pair it with a
+  route-length `perf.samples` count).
 - Validity guard (`gate.validity.requireNonzero`): a list of field names that
   must be nonzero for a run to be valid. A zero/missing required field yields a
   new INVALID verdict (distinct from FAIL: the run produced no usable activity),
