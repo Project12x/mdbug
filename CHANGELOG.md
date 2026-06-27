@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `mdbug.ps1` now reads the configured `perf.doneFlag` dump and passes
+  `--done-ok 0/1` to the analyzer. A deterministic route that samples perf data
+  but never sets its completion flag now fails as `scenario did not complete`
+  instead of silently reporting a valid-looking gate.
+
 ### Added
 - **Profiler toolchain — ELF/DWARF symbolization, instruction disasm, interchange
   artifacts, and a first-class `-Profile` pass.** Adopted three OPTIONAL, import-guarded

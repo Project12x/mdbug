@@ -226,6 +226,26 @@ if ($Backend -eq "emusplatter") {
 if ($DryRun) { $sampleArgs.DryRun = $true }
 & $adapter @sampleArgs
 
+$doneOk = $true
+if (-not $DryRun -and $cfg.perf.doneFlag -and $cfg.perf.doneFlag.symbol) {
+    $doneOk = $false
+    $expectedDone = if ($cfg.perf.doneFlag.PSObject.Properties['value']) {
+        [int]$cfg.perf.doneFlag.value
+    } else {
+        1
+    }
+    if (Test-Path -LiteralPath $dump) {
+        $sampleText = Get-Content -LiteralPath $dump -Raw
+        $doneSymbol = [Regex]::Escape([string]$cfg.perf.doneFlag.symbol)
+        $donePattern = "<$doneSymbol>:\s*([0-9]+)"
+        $doneMatches = [Regex]::Matches($sampleText, $donePattern)
+        if ($doneMatches.Count -gt 0) {
+            $lastDone = [int]$doneMatches[$doneMatches.Count - 1].Groups[1].Value
+            $doneOk = ($lastDone -eq $expectedDone)
+        }
+    }
+}
+
 # 6. screenshot pass
 if (-not $NoScreenshots -and $checkpoints.Count -gt 0) {
     $shotArgs = @{ Action = "screenshot"; Rom = $rom; EmuPath = $be.path; OutFile = $shotsDir; Checkpoints = $checkpoints }
@@ -240,6 +260,10 @@ if (-not $sha) { $sha = "?" }
 $analyzeArgs = @("-m", "analyzer.cli", "--config", $Config, "--backend", $Backend,
     "--samples-file", $dump, "--samples-format", $fmt, "--shots-dir", $shotsDir,
     "--out", (Join-Path $outDir "report.md"), "--git-sha", $sha, "--project", (Split-Path $buildCwd -Leaf))
+if ($cfg.perf.doneFlag -and $cfg.perf.doneFlag.symbol) {
+    $doneArg = if ($doneOk) { "1" } else { "0" }
+    $analyzeArgs += @("--done-ok", $doneArg)
+}
 if ($UpdateBaseline) { $analyzeArgs += "--update-baseline" }
 if ($DryRun) { Write-Output "ANALYZE: $python $($analyzeArgs -join ' ')"; return }
 

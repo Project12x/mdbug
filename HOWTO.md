@@ -16,6 +16,10 @@ The orchestrator will (unless flags suppress a step):
 
 `<outDir>` is the value of `config.report.outDir`, resolved relative to the config file's directory.
 
+When `perf.doneFlag` is configured, the wrapper reads the final sampled flag
+value and passes it to the analyzer. A route that produced samples but never set
+the done flag exits nonzero with `scenario did not complete`.
+
 Useful flags:
 - `-NoBuild` — skip the build step; use the ROM already on disk.
 - `-NoScreenshots` — skip the screenshot pass. Optional headlessly: when no
